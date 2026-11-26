@@ -48,11 +48,10 @@ class PreparedStmt {
   }
   run(...args) {
     innerDb.run(this.sql, args);
+    const changes = getRowsModified();
+    const lastInsertRowid = getLastInsertRowid();
     persist();
-    return {
-      changes: getRowsModified(),
-      lastInsertRowid: getLastInsertRowid()
-    };
+    return { changes, lastInsertRowid };
   }
   get(...args) {
     const stmt = innerDb.prepare(this.sql);

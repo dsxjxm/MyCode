@@ -2,7 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
-import { ZipArchive } from 'archiver';
+import archiver from 'archiver';
+
+// 兼容 archiver 5（默认导出函数）与 archiver 8（导出 ZipArchive 类）
+function createZip(opts = {}) {
+  return archiver.ZipArchive ? new archiver.ZipArchive(opts) : archiver('zip', opts);
+}
 import { db, now } from '../db.js';
 import { buildPreviewToken, requireTeacher } from '../auth.js';
 import { hashPassword } from '../password.js';
@@ -273,7 +278,7 @@ router.get('/:id/download-zip', (req, res) => {
   if (!fs.existsSync(base)) return res.status(404).json({ error: '空间目录不存在' });
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', contentDisposition(`${row.student_no}_${row.name}_www.zip`));
-  const archive = new ZipArchive({ zlib: { level: 9 } });
+  const archive = createZip({ zlib: { level: 9 } });
   archive.on('error', () => res.destroy());
   archive.pipe(res);
   archive.directory(base, false);
@@ -324,7 +329,7 @@ router.get('/:id/ftp/download-zip', (req, res) => {
   if (!fs.existsSync(base)) return res.status(404).json({ error: '空间目录不存在' });
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', contentDisposition(`${row.student_no}_${row.name}_ftp.zip`));
-  const archive = new ZipArchive({ zlib: { level: 9 } });
+  const archive = createZip({ zlib: { level: 9 } });
   archive.on('error', () => res.destroy());
   archive.pipe(res);
   archive.directory(base, false);
