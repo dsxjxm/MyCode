@@ -372,8 +372,8 @@ export function createAccount({ username, domain, displayName, password, student
   const full = `${username}@${d}`;
   if (findAccountByAddress(full)) return null;
   const r = db.prepare(
-    `INSERT INTO mail_accounts (username, domain, full_address, display_name, password_hash, student_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO mail_accounts (username, domain, full_address, display_name, password_hash, student_id, phone, claimed, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, '', 1, ?)`
   ).run(username, d, full, displayName || username, hashPassword(password), studentId || null, new Date().toISOString());
   return Number(r.lastInsertRowid);
 }

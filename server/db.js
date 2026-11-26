@@ -219,6 +219,8 @@ CREATE TABLE IF NOT EXISTS mail_accounts (
   display_name TEXT NOT NULL DEFAULT '',
   password_hash TEXT NOT NULL,
   student_id INTEGER REFERENCES students(id) ON DELETE SET NULL,
+  phone TEXT NOT NULL DEFAULT '',    -- 模拟手机号（仅教学，不发真实短信）
+  claimed INTEGER NOT NULL DEFAULT 0, -- 1=已注册（学生自行注册或教师创建）
   created_at TEXT NOT NULL
 );
 
@@ -284,11 +286,45 @@ CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- 模拟短信验证码（注册 / 登录）
+CREATE TABLE IF NOT EXISTS mail_login_codes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  target TEXT NOT NULL,             -- 注册=手机号，登录=邮箱地址
+  purpose TEXT NOT NULL,            -- register / login
+  code TEXT NOT NULL,
+  phone TEXT NOT NULL DEFAULT '',
+  expires_ms INTEGER NOT NULL,
+  used INTEGER NOT NULL DEFAULT 0,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  created_ms INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mail_code_target ON mail_login_codes(target, purpose, used);
+
+-- 邮箱登录会话（平台登录之上的邮箱身份）
+CREATE TABLE IF NOT EXISTS mail_sessions (
+  token TEXT PRIMARY KEY,
+  account_id INTEGER NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL,
+  expires_ms INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
 `);
 
 function now() {
   return new Date().toISOString();
 }
+
+// 轻量迁移：为旧库补充新列
+(function migrateMailAccountColumns() {
+  const cols = db.prepare('PRAGMA table_info(mail_accounts)').all().map((c) => c.name);
+  if (!cols.includes('phone')) {
+    db.prepare("ALTER TABLE mail_accounts ADD COLUMN phone TEXT NOT NULL DEFAULT ''").run();
+  }
+  if (!cols.includes('claimed')) {
+    db.prepare('ALTER TABLE mail_accounts ADD COLUMN claimed INTEGER NOT NULL DEFAULT 0').run();
+  }
+})();
 
 const teacherCount = db.prepare('SELECT COUNT(*) AS c FROM teachers').get().c;
 if (teacherCount === 0) {

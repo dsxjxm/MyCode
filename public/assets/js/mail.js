@@ -16,15 +16,24 @@
   };
 
   // ========== API 封装 ==========
+  let mailToken = sessionStorage.getItem('mailToken') || '';
   async function api(method, path, body) {
     const opts = { method, headers: {} };
+    if (mailToken) opts.headers['x-mail-token'] = mailToken;
     if (body !== undefined) {
       opts.headers['Content-Type'] = 'application/json';
       opts.body = JSON.stringify(body);
     }
     const res = await fetch('/api/mail' + path, opts);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!res.ok) {
+      if (data.code === 'MAIL_LOGIN_REQUIRED') {
+        mailToken = '';
+        sessionStorage.removeItem('mailToken');
+        showGate();
+      }
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
     return data;
   }
 
@@ -94,7 +103,12 @@
         });
       }
 
-      // 加载邮箱配置 + 确定 mailAccount
+      // 学生必须先登录/注册邮箱
+      if (state.role === 'student') {
+        const ok = await ensureMailSession();
+        if (!ok) { drawCaptcha(); return; }
+      }
+
       await loadMailIdentity();
       await refreshAll();
     } catch (e) {
@@ -102,30 +116,44 @@
     }
   }
 
-  async function loadMailIdentity() {
-    // 通过 counts 接口隐式触发 bindMailAccount，然后根据当前用户推断邮箱
+  // 检查邮箱会话；未登录则展示门禁
+  async function ensureMailSession() {
+    let info = null;
     try {
-      const counts = await api('GET', '/mails/counts');
-      state.counts = counts;
-    } catch { /* 可能没有邮箱账号 */ }
+      info = await api('GET', '/session');
+    } catch (_) { /* ignore */ }
+    if (info && info.account) {
+      state.mailAccount = info.account;
+      state.domain = info.domain;
+      hideGate();
+      updateDomainLabels();
+      return true;
+    }
+    showGate(info);
+    return false;
+  }
 
-    // 查 config + 账号列表，拿到当前账号地址
+  async function loadMailIdentity() {
     try {
       const cfg = await api('GET', '/config');
-      const accounts = await api('GET', '/accounts');
-      if (state.role === 'student') {
-        const myAcct = accounts.find(a => a.student_id === state.user.id);
-        state.mailAccount = myAcct || null;
-      } else {
-        // 教师默认显示第一个学生的邮箱
-        state.mailAccount = accounts[0] || null;
-      }
+      state.domain = cfg.domain;
+      updateDomainLabels();
+    } catch { /* ignore */ }
+
+    if (state.role === 'student') {
       if (state.mailAccount) {
         document.getElementById('myAddr').textContent = state.mailAccount.full_address;
       } else {
-        document.getElementById('myAddr').textContent = '(无)';
-        toast('没有可用的邮箱账号', 'error');
+        document.getElementById('myAddr').textContent = '(未登录)';
       }
+      return;
+    }
+    // 教师：默认显示第一个学生的邮箱
+    try {
+      const accounts = await api('GET', '/accounts');
+      state.mailAccount = accounts[0] || null;
+      document.getElementById('myAddr').textContent =
+        state.mailAccount ? state.mailAccount.full_address : '(未选择)';
     } catch (e) {
       toast('加载邮箱配置失败: ' + e.message, 'error');
     }
@@ -897,6 +925,238 @@ ${res.log.map(l => `[${new Date(l.ts).toLocaleTimeString('zh-CN')}] ${l.dir === 
     document.getElementById('bookModal').classList.remove('show');
   }
 
+  // ========== 邮箱登录 / 注册门禁 ==========
+  let _authTab = 'login';
+  let _captchaText = '';
+  let _smsPurpose = 'register';
+  let _popTimer = null;
+
+  function updateDomainLabels() {
+    document.querySelectorAll('.gate-domain').forEach((el) => {
+      el.textContent = state.domain || 'example.local';
+    });
+  }
+  function switchAuthTab(tab) {
+    _authTab = tab;
+    document.getElementById('gateTabLogin').classList.toggle('active', tab === 'login');
+    document.getElementById('gateTabReg').classList.toggle('active', tab === 'register');
+    document.getElementById('gateLoginForm').style.display = tab === 'login' ? 'block' : 'none';
+    document.getElementById('gateRegForm').style.display = tab === 'register' ? 'block' : 'none';
+    if (tab === 'register' && !_captchaText) drawCaptcha();
+  }
+  function setNotice(which, msg) {
+    const el = document.getElementById(which === 'login' ? 'gateLoginNotice' : 'gateRegNotice');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.display = msg ? 'block' : 'none';
+  }
+  function showGate(info) {
+    document.body.classList.add('mail-gated');
+    document.getElementById('mailGate').classList.add('show');
+    if (info && info.domain) state.domain = info.domain;
+    updateDomainLabels();
+    document.getElementById('lgMsg').textContent = '';
+    document.getElementById('rgMsg').textContent = '';
+    let tab = 'register';
+    if (info && info.hasAccount) {
+      const alias = String(info.address || '').split('@')[0];
+      if (alias) {
+        document.getElementById('lgAlias').value = alias;
+        document.getElementById('rgAlias').value = alias;
+      }
+      if (info.claimed) {
+        tab = 'login';
+        setNotice('login', `你的邮箱：${info.address}，可直接登录。`);
+        setNotice('register', `你已注册邮箱 ${info.address}，请使用“邮箱登录”。`);
+      } else {
+        tab = 'register';
+        setNotice('register', '检测到教师预置的邮箱账号，请完成注册（可修改别名与昵称）。');
+      }
+    } else {
+      setNotice('login', '');
+      setNotice('register', '');
+    }
+    switchAuthTab(tab);
+    drawCaptcha();
+  }
+  function hideGate() {
+    document.body.classList.remove('mail-gated');
+    document.getElementById('mailGate').classList.remove('show');
+  }
+  function switchLoginMethod() {
+    const method = document.querySelector('input[name="lgMethod"]:checked').value;
+    document.getElementById('lgPwdField').style.display = method === 'password' ? 'block' : 'none';
+    document.getElementById('lgSmsField').style.display = method === 'sms' ? 'block' : 'none';
+  }
+  function drawCaptcha() {
+    const cv = document.getElementById('captchaCanvas');
+    if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let s = '';
+    ctx.fillStyle = '#eef3f9';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    for (let i = 0; i < 4; i++) {
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      s += ch;
+      ctx.save();
+      ctx.translate(13 + i * 21, 24);
+      ctx.rotate((Math.random() - 0.5) * 0.5);
+      ctx.font = 'bold 19px Arial';
+      ctx.fillStyle = `hsl(${180 + Math.random() * 80}, 45%, 35%)`;
+      ctx.fillText(ch, 0, 0);
+      ctx.restore();
+    }
+    for (let i = 0; i < 3; i++) {
+      ctx.strokeStyle = 'rgba(120,150,180,.4)';
+      ctx.beginPath();
+      ctx.moveTo(Math.random() * cv.width, Math.random() * cv.height);
+      ctx.lineTo(Math.random() * cv.width, Math.random() * cv.height);
+      ctx.stroke();
+    }
+    _captchaText = s;
+  }
+  function showSmsPop(code, purpose) {
+    _smsPurpose = purpose;
+    document.getElementById('smsCode').textContent = code;
+    document.getElementById('smsPurposeText').textContent =
+      purpose === 'register' ? '注册邮箱' : '登录邮箱';
+    const pop = document.getElementById('smsPop');
+    pop.classList.add('show');
+    clearInterval(_popTimer);
+    let n = 30;
+    document.getElementById('smsCountdown').textContent = n + ' 秒后关闭';
+    _popTimer = setInterval(() => {
+      n--;
+      document.getElementById('smsCountdown').textContent = n + ' 秒后关闭';
+      if (n <= 0) {
+        clearInterval(_popTimer);
+        pop.classList.remove('show');
+      }
+    }, 1000);
+  }
+  function fillSmsCode() {
+    const code = document.getElementById('smsCode').textContent.trim();
+    const input = document.getElementById(_smsPurpose === 'register' ? 'rgCode' : 'lgCode');
+    if (input) input.value = code;
+    document.getElementById('smsPop').classList.remove('show');
+  }
+  function startSmsCountdown(btn) {
+    let n = 60;
+    btn.disabled = true;
+    btn.textContent = n + 's 后重试';
+    const t = setInterval(() => {
+      n--;
+      btn.textContent = n + 's 后重试';
+      if (n <= 0) {
+        clearInterval(t);
+        btn.disabled = false;
+        btn.textContent = '获取验证码';
+      }
+    }, 1000);
+  }
+  async function sendSmsCode(purpose) {
+    const isReg = purpose === 'register';
+    const phone = document.getElementById(isReg ? 'rgPhone' : 'lgPhone').value.trim();
+    const alias = document.getElementById(isReg ? 'rgAlias' : 'lgAlias').value.trim();
+    const msgEl = document.getElementById(isReg ? 'rgMsg' : 'lgMsg');
+    const btn = document.getElementById(isReg ? 'rgSmsBtn' : 'lgSmsBtn');
+    msgEl.textContent = '';
+    if (!/^1\d{10}$/.test(phone)) {
+      msgEl.textContent = '请输入 11 位模拟手机号（如 13800000000）';
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const payload = { purpose, phone };
+      if (purpose === 'login') payload.address = alias;
+      const r = await api('POST', '/sms-code', payload);
+      showSmsPop(r.code, purpose);
+      startSmsCountdown(btn);
+    } catch (e) {
+      msgEl.textContent = e.message;
+      btn.disabled = false;
+    }
+  }
+  function onMailAuthed(r) {
+    mailToken = r.token;
+    sessionStorage.setItem('mailToken', mailToken);
+    state.mailAccount = r.account;
+    hideGate();
+    toast('邮箱登录成功：' + r.account.full_address, 'success');
+    loadMailIdentity().then(refreshAll);
+  }
+  async function submitMailLogin(ev) {
+    ev.preventDefault();
+    const msg = document.getElementById('lgMsg');
+    msg.textContent = '';
+    const alias = document.getElementById('lgAlias').value.trim();
+    if (!alias) { msg.textContent = '请输入邮箱账号'; return false; }
+    const method = document.querySelector('input[name="lgMethod"]:checked').value;
+    const payload = { address: alias, method };
+    if (method === 'sms') {
+      payload.code = document.getElementById('lgCode').value.trim();
+      if (!payload.code) { msg.textContent = '请输入短信验证码'; return false; }
+    } else {
+      payload.password = document.getElementById('lgPwd').value;
+      if (!payload.password) { msg.textContent = '请输入密码'; return false; }
+    }
+    try {
+      const r = await api('POST', '/login', payload);
+      onMailAuthed(r);
+    } catch (e) {
+      msg.textContent = e.message;
+    }
+    return false;
+  }
+  async function submitMailRegister(ev) {
+    ev.preventDefault();
+    const msg = document.getElementById('rgMsg');
+    msg.textContent = '';
+    const alias = document.getElementById('rgAlias').value.trim().toLowerCase();
+    const name = document.getElementById('rgName').value.trim();
+    const phone = document.getElementById('rgPhone').value.trim();
+    const captcha = document.getElementById('rgCaptcha').value.trim().toUpperCase();
+    const code = document.getElementById('rgCode').value.trim();
+    const pwd = document.getElementById('rgPwd').value;
+    const pwd2 = document.getElementById('rgPwd2').value;
+    if (!/^[a-z0-9][a-z0-9._-]{2,17}$/.test(alias)) {
+      msg.textContent = '账号需 3-18 位，字母/数字/._-，且以字母或数字开头';
+      return false;
+    }
+    if (captcha !== _captchaText) {
+      msg.textContent = '图形验证码错误，请重新输入';
+      drawCaptcha();
+      return false;
+    }
+    if (!/^1\d{10}$/.test(phone)) {
+      msg.textContent = '请填写 11 位模拟手机号';
+      return false;
+    }
+    if (!code) { msg.textContent = '请输入短信验证码'; return false; }
+    if (pwd.length < 6) { msg.textContent = '密码至少 6 位'; return false; }
+    if (pwd !== pwd2) { msg.textContent = '两次输入的密码不一致'; return false; }
+    try {
+      const r = await api('POST', '/register', {
+        alias, password: pwd, display_name: name, phone, code
+      });
+      onMailAuthed(r);
+    } catch (e) {
+      msg.textContent = e.message;
+      drawCaptcha();
+    }
+    return false;
+  }
+  async function mailLogout() {
+    const addr = state.mailAccount ? state.mailAccount.full_address : '';
+    try { await api('POST', '/logout'); } catch (_) { /* ignore */ }
+    mailToken = '';
+    sessionStorage.removeItem('mailToken');
+    state.mailAccount = null;
+    const hasAccount = !!addr;
+    showGate(hasAccount ? { hasAccount: true, claimed: true, address: addr } : null);
+  }
+
   // ========== 导出到全局 ==========
   window.switchFolder = switchFolder;
   window.refresh = refresh;
@@ -926,6 +1186,14 @@ ${res.log.map(l => `[${new Date(l.ts).toLocaleTimeString('zh-CN')}] ${l.dir === 
   window.openAddressBook = openAddressBook;
   window.closeAddressBook = closeAddressBook;
   window.useContact = useContact;
+  window.switchAuthTab = switchAuthTab;
+  window.switchLoginMethod = switchLoginMethod;
+  window.sendSmsCode = sendSmsCode;
+  window.submitMailLogin = submitMailLogin;
+  window.submitMailRegister = submitMailRegister;
+  window.drawCaptcha = drawCaptcha;
+  window.fillSmsCode = fillSmsCode;
+  window.mailLogout = mailLogout;
   window.openAdmin = openAdmin;
   window.closeAdmin = closeAdmin;
   window.saveMailConfig = saveMailConfig;

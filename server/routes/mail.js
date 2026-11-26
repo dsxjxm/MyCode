@@ -1,6 +1,7 @@
 // Module 4: Mail Server (SMTP / POP3) 路由
 import { Router } from 'express';
 import multer from 'multer';
+import { randomBytes } from 'node:crypto';
 import { db } from '../db.js';
 import { requireTeacher } from '../auth.js';
 import {
@@ -12,7 +13,7 @@ import {
   listBlacklist, addBlacklist, removeBlacklist,
   createScheduled, listScheduled, cancelScheduled, runDueScheduled
 } from '../services/mailSim.js';
-import { verifyPassword } from '../password.js';
+import { verifyPassword, hashPassword } from '../password.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -23,13 +24,88 @@ function requireLogin(req, res, next) {
   next();
 }
 
+// ==================== 邮箱注册 / 登录（模拟短信） ====================
+const MAIL_SESSION_MS = 8 * 60 * 60 * 1000;
+const SMS_TTL_MS = 5 * 60 * 1000;
+const SMS_COOLDOWN_MS = 30 * 1000;
+
+function mailDomain() { return getMailConfig().domain; }
+
+function normAddress(input) {
+  let s = String(input || '').trim().toLowerCase();
+  if (!s) return '';
+  if (!s.includes('@')) s = `${s}@${mailDomain()}`;
+  return s;
+}
+
+function validAlias(a) { return /^[a-z0-9][a-z0-9._-]{2,17}$/.test(a); }
+
+function publicAccount(acct) {
+  return { id: acct.id, full_address: acct.full_address, display_name: acct.display_name };
+}
+
+function issueSmsCode({ target, purpose, phone }) {
+  const nowMs = Date.now();
+  const last = db.prepare(
+    'SELECT created_ms FROM mail_login_codes WHERE target=? AND purpose=? ORDER BY id DESC LIMIT 1'
+  ).get(target, purpose);
+  if (last && nowMs - last.created_ms < SMS_COOLDOWN_MS) {
+    return { error: `请 ${Math.ceil((SMS_COOLDOWN_MS - (nowMs - last.created_ms)) / 1000)} 秒后再获取验证码` };
+  }
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  db.prepare(
+    `INSERT INTO mail_login_codes (target, purpose, code, phone, expires_ms, created_ms)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(target, purpose, code, phone || '', nowMs + SMS_TTL_MS, nowMs);
+  return { code };
+}
+
+function checkSmsCode({ target, purpose, code }) {
+  const nowMs = Date.now();
+  const row = db.prepare(
+    `SELECT * FROM mail_login_codes WHERE target=? AND purpose=? AND used=0 ORDER BY id DESC LIMIT 1`
+  ).get(target, purpose);
+  if (!row) return '请先获取短信验证码';
+  if (row.expires_ms < nowMs) return '验证码已过期，请重新获取';
+  if (row.attempts >= 5) return '验证码尝试次数过多，请重新获取';
+  if (String(row.code) !== String(code || '').trim()) {
+    db.prepare('UPDATE mail_login_codes SET attempts=attempts+1 WHERE id=?').run(row.id);
+    return '验证码错误';
+  }
+  db.prepare('UPDATE mail_login_codes SET used=1 WHERE id=?').run(row.id);
+  return null;
+}
+
+function createMailSession(account, userId) {
+  const token = randomBytes(24).toString('hex');
+  db.prepare('DELETE FROM mail_sessions WHERE expires_ms < ?').run(Date.now());
+  db.prepare(
+    'INSERT INTO mail_sessions (token, account_id, user_id, expires_ms, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).run(token, account.id, userId, Date.now() + MAIL_SESSION_MS, new Date().toISOString());
+  return token;
+}
+
+function sessionToken(req) {
+  return req.get('x-mail-token') || req.query.mail_token || (req.body && req.body.mail_token) || '';
+}
+
+function resolveMailSession(req) {
+  const token = sessionToken(req);
+  if (!token) return null;
+  const s = db.prepare('SELECT * FROM mail_sessions WHERE token=?').get(token);
+  if (!s || s.expires_ms < Date.now()) return null;
+  return db.prepare('SELECT * FROM mail_accounts WHERE id=?').get(s.account_id) || null;
+}
+
 // 为 mail 相关请求绑定 mailAccount 到 req.mailAccount
 function bindMailAccount(req, res, next) {
   if (!req.user) return res.status(401).json({ error: '请先登录' });
   if (req.user.role === 'student') {
-    req.mailAccount = db.prepare(
-      `SELECT ma.* FROM mail_accounts ma WHERE ma.student_id = ?`
-    ).get(req.user.id) || null;
+    const acct = resolveMailSession(req);
+    if (!acct) {
+      return res.status(401).json({ error: '请先登录邮箱', code: 'MAIL_LOGIN_REQUIRED' });
+    }
+    req.mailAccount = acct;
   } else {
     // 教师可以通过 query.account_id 指定查看哪个账号
     const aid = req.query.account_id || req.body?.account_id;
@@ -48,6 +124,134 @@ function needMailAccount(req, res, next) {
   }
   next();
 }
+
+// 当前邮箱会话状态 / 是否已注册
+router.get('/session', requireLogin, (req, res) => {
+  if (req.user.role !== 'student') return res.json({ teacher: true, domain: mailDomain() });
+  const acct = resolveMailSession(req);
+  const bound = db.prepare(
+    'SELECT id, full_address, display_name, claimed, phone FROM mail_accounts WHERE student_id=?'
+  ).get(req.user.id) || null;
+  res.json({
+    teacher: false,
+    domain: mailDomain(),
+    account: acct ? publicAccount(acct) : null,
+    hasAccount: !!bound,
+    claimed: bound ? !!bound.claimed : false,
+    address: bound ? bound.full_address : null,
+    phoneMasked: bound && bound.phone
+      ? bound.phone.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2')
+      : ''
+  });
+});
+
+// 获取模拟短信验证码（不发送真实短信，直接返回给前端演示）
+router.post('/sms-code', requireLogin, (req, res) => {
+  if (req.user.role !== 'student') return res.status(403).json({ error: '仅学生可注册/登录邮箱' });
+  const { purpose = 'register', phone, address } = req.body || {};
+  const phoneStr = String(phone || '').trim();
+  if (!/^1\d{10}$/.test(phoneStr)) {
+    return res.status(400).json({ error: '请输入 11 位模拟手机号（如 13800000000）' });
+  }
+  if (purpose === 'register') {
+    const bound = db.prepare('SELECT * FROM mail_accounts WHERE student_id=?').get(req.user.id);
+    if (bound && bound.claimed) {
+      return res.status(409).json({ error: '你已注册邮箱，请直接登录' });
+    }
+    const r = issueSmsCode({ target: phoneStr, purpose: 'register', phone: phoneStr });
+    if (r.error) return res.status(429).json({ error: r.error });
+    return res.json({ ok: true, code: r.code, expires_in: 300, simulated: true });
+  }
+  if (purpose === 'login') {
+    const addr = normAddress(address);
+    const acct = db.prepare('SELECT * FROM mail_accounts WHERE lower(full_address)=?').get(addr);
+    if (!acct || acct.student_id !== req.user.id) {
+      return res.status(404).json({ error: '邮箱账号不存在或不属于你' });
+    }
+    if (acct.phone && acct.phone !== phoneStr) {
+      return res.status(400).json({ error: '手机号与注册时不一致' });
+    }
+    const r = issueSmsCode({ target: addr, purpose: 'login', phone: phoneStr });
+    if (r.error) return res.status(429).json({ error: r.error });
+    return res.json({ ok: true, code: r.code, expires_in: 300, simulated: true });
+  }
+  res.status(400).json({ error: '未知的验证码用途' });
+});
+
+// 学生自行注册邮箱（绑定当前学生账号，可自选别名）
+router.post('/register', requireLogin, (req, res) => {
+  if (req.user.role !== 'student') return res.status(403).json({ error: '仅学生可注册邮箱' });
+  const { alias, password, display_name, phone, code } = req.body || {};
+  const a = String(alias || '').trim().toLowerCase();
+  const phoneStr = String(phone || '').trim();
+  if (!validAlias(a)) {
+    return res.status(400).json({ error: '账号需 3-18 位，字母/数字/._-，且以字母或数字开头' });
+  }
+  if (!password || String(password).length < 6) {
+    return res.status(400).json({ error: '密码至少 6 位' });
+  }
+  if (!/^1\d{10}$/.test(phoneStr)) {
+    return res.status(400).json({ error: '请填写 11 位模拟手机号' });
+  }
+  const domain = mailDomain();
+  const full = `${a}@${domain}`;
+  const bound = db.prepare('SELECT * FROM mail_accounts WHERE student_id=?').get(req.user.id);
+  if (bound && bound.claimed) {
+    return res.status(409).json({ error: `你已注册邮箱 ${bound.full_address}，请直接登录` });
+  }
+  if (db.prepare('SELECT id FROM mail_accounts WHERE lower(full_address)=?').get(full)) {
+    return res.status(409).json({ error: '该邮箱账号已被占用，请换一个别名' });
+  }
+  if (db.prepare('SELECT id FROM mail_accounts WHERE lower(username)=? AND (student_id IS NULL OR student_id<>?)').get(a, req.user.id)) {
+    return res.status(409).json({ error: '该邮箱账号已被占用，请换一个别名' });
+  }
+  const smsErr = checkSmsCode({ target: phoneStr, purpose: 'register', code });
+  if (smsErr) return res.status(400).json({ error: smsErr });
+  const name = String(display_name || '').trim().slice(0, 12) || req.user.name || a;
+  let accountId;
+  if (bound) {
+    db.prepare(
+      `UPDATE mail_accounts SET username=?, domain=?, full_address=?, display_name=?,
+              password_hash=?, phone=?, claimed=1 WHERE id=?`
+    ).run(a, domain, full, name, hashPassword(String(password)), phoneStr, bound.id);
+    accountId = bound.id;
+  } else {
+    const r = db.prepare(
+      `INSERT INTO mail_accounts (username, domain, full_address, display_name, password_hash, student_id, phone, claimed, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`
+    ).run(a, domain, full, name, hashPassword(String(password)), req.user.id, phoneStr, new Date().toISOString());
+    accountId = Number(r.lastInsertRowid);
+  }
+  const account = db.prepare('SELECT * FROM mail_accounts WHERE id=?').get(accountId);
+  const token = createMailSession(account, req.user.id);
+  res.json({ ok: true, token, account: publicAccount(account) });
+});
+
+// 学生登录自己的邮箱（密码或短信验证码）
+router.post('/login', requireLogin, (req, res) => {
+  if (req.user.role !== 'student') return res.status(403).json({ error: '教师无需邮箱登录' });
+  const { address, password, code, method = 'password' } = req.body || {};
+  const addr = normAddress(address);
+  if (!addr) return res.status(400).json({ error: '请输入邮箱账号' });
+  const acct = db.prepare('SELECT * FROM mail_accounts WHERE lower(full_address)=?').get(addr);
+  if (!acct || acct.student_id !== req.user.id) {
+    return res.status(401).json({ error: '邮箱账号不存在或不属于你' });
+  }
+  if (method === 'sms') {
+    const err = checkSmsCode({ target: addr, purpose: 'login', code });
+    if (err) return res.status(400).json({ error: err });
+  } else if (!verifyPassword(String(password || ''), acct.password_hash)) {
+    return res.status(401).json({ error: '密码错误' });
+  }
+  const token = createMailSession(acct, req.user.id);
+  res.json({ ok: true, token, account: publicAccount(acct) });
+});
+
+router.post('/logout', requireLogin, (req, res) => {
+  const token = sessionToken(req);
+  if (token) db.prepare('DELETE FROM mail_sessions WHERE token=?').run(token);
+  res.json({ ok: true });
+});
 
 // ==================== 配置 ====================
 

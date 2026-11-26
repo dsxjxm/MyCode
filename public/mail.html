@@ -164,6 +164,44 @@ body.is-teacher .sidebar-footer { display:none; }
 .admin-modal .panel .btn-danger { background:#e74c3c; color:#fff; border-color:#e74c3c; }
 .admin-modal .panel .btn-sm { padding:3px 10px; font-size:11px; }
 .admin-modal .panel .btn:hover { opacity:.85; }
+
+/* ===== 邮箱登录 / 注册门禁 ===== */
+.mail-gate { position:fixed; top:52px; left:0; right:0; bottom:0; background:linear-gradient(160deg,#eef3f9,#dde7f3);
+  display:none; align-items:center; justify-content:center; z-index:60; padding:20px; overflow:auto; }
+.mail-gate.show { display:flex; }
+body.mail-gated .layout { display:none; }
+.gate-card { width:470px; max-width:100%; background:#fff; border-radius:12px; box-shadow:0 12px 44px rgba(30,50,80,.18); padding:26px 28px; }
+.gate-card h2 { margin:0 0 4px; font-size:19px; color:#1f3a56; }
+.gate-card .sub { font-size:12px; color:#8a95a5; margin-bottom:16px; }
+.gate-tabs { display:flex; gap:6px; margin-bottom:16px; }
+.gate-tabs button { flex:1; padding:8px; border:1px solid #dbe2ea; background:#f7f9fc; border-radius:6px; cursor:pointer; font-size:13px; color:#5b6878; }
+.gate-tabs button.active { background:#3d7fb5; border-color:#3d7fb5; color:#fff; font-weight:600; }
+.gate-field { margin-bottom:12px; }
+.gate-field > label { display:block; font-size:12px; color:#5b6878; margin-bottom:5px; }
+.gate-field input[type=text], .gate-field input[type=password] { width:100%; padding:9px 10px; border:1px solid #d5dbe3; border-radius:6px; font-size:13px; }
+.gate-input-row { display:flex; align-items:center; gap:4px; }
+.gate-input-row .suffix { font-size:12px; color:#8a95a5; white-space:nowrap; }
+.gate-inline { display:flex; gap:8px; }
+.gate-inline input { flex:1; }
+.btn-sms-code { padding:0 12px; border:1px solid #3d7fb5; background:#fff; color:#3d7fb5; border-radius:6px; font-size:12px; cursor:pointer; white-space:nowrap; }
+.btn-sms-code:disabled { color:#9aa5b1; border-color:#d5dbe3; cursor:not-allowed; }
+.gate-submit { width:100%; padding:10px; border:none; border-radius:6px; background:#3d7fb5; color:#fff; font-size:14px; font-weight:600; cursor:pointer; margin-top:4px; }
+.gate-submit:hover { background:#2c5f8a; }
+.gate-msg { min-height:18px; font-size:12px; color:#c0392b; margin-top:8px; }
+.gate-tip { font-size:11px; color:#9aa5b1; line-height:1.7; margin-top:10px; }
+.gate-notice { background:#fdf6e3; border:1px solid #f3e3b3; color:#8a6d1f; font-size:12px; padding:8px 10px; border-radius:6px; margin-bottom:12px; }
+.captcha-row { display:flex; gap:8px; align-items:center; }
+.captcha-row canvas { border-radius:4px; border:1px solid #d5dbe3; cursor:pointer; flex:none; }
+/* 模拟手机短信弹窗 */
+.sms-pop { position:fixed; right:22px; bottom:22px; width:300px; background:#1f2a37; color:#fff; border-radius:10px;
+  box-shadow:0 10px 30px rgba(0,0,0,.3); padding:14px 16px; z-index:80; display:none; font-size:12.5px; }
+.sms-pop.show { display:block; animation:smspin .25s ease; }
+@keyframes smspin { from{transform:translateY(12px);opacity:0} to{transform:none;opacity:1} }
+.sms-pop .h { font-size:12px; color:#9fb3c8; margin-bottom:8px; }
+.sms-pop .code { font-size:26px; letter-spacing:6px; font-weight:700; color:#7fd1a0; margin:6px 0; }
+.sms-pop .f { display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#9fb3c8; }
+.sms-pop button { border:none; background:#3d7fb5; color:#fff; border-radius:4px; padding:4px 10px; font-size:11px; cursor:pointer; }
+body.is-teacher #mailLogoutBtn { display:none; }
 </style>
 </head>
 <body>
@@ -185,6 +223,115 @@ body.is-teacher .sidebar-footer { display:none; }
     <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">退出</button>
   </div>
 </header>
+
+<!-- 邮箱登录 / 注册门禁（学生首次使用） -->
+<div class="mail-gate" id="mailGate">
+  <div class="gate-card">
+    <h2>📮 登录局域网邮箱</h2>
+    <div class="sub">完整流程：注册邮箱 → 登录 → 收/发邮件</div>
+    <div class="gate-tabs">
+      <button type="button" id="gateTabLogin" onclick="switchAuthTab('login')">邮箱登录</button>
+      <button type="button" id="gateTabReg" onclick="switchAuthTab('register')">注册邮箱</button>
+    </div>
+
+    <form id="gateLoginForm" onsubmit="return submitMailLogin(event)">
+      <div class="gate-notice" id="gateLoginNotice" style="display:none;"></div>
+      <div class="gate-field">
+        <label>邮箱账号</label>
+        <div class="gate-input-row">
+          <input type="text" id="lgAlias" placeholder="如 20250101" autocomplete="username">
+          <span class="suffix">@<span class="gate-domain">example.local</span></span>
+        </div>
+      </div>
+      <div class="gate-field">
+        <label>登录方式</label>
+        <div style="display:flex;gap:14px;font-size:12.5px;color:#5b6878;">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="radio" name="lgMethod" value="password" checked onchange="switchLoginMethod()"> 密码登录
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="radio" name="lgMethod" value="sms" onchange="switchLoginMethod()"> 短信验证码
+          </label>
+        </div>
+      </div>
+      <div class="gate-field" id="lgPwdField">
+        <label>密码</label>
+        <input type="password" id="lgPwd" placeholder="请输入邮箱密码" autocomplete="current-password">
+      </div>
+      <div id="lgSmsField" style="display:none;">
+        <div class="gate-field">
+          <label>手机号（模拟）</label>
+          <input type="text" id="lgPhone" placeholder="注册时填写的手机号" maxlength="11">
+        </div>
+        <div class="gate-field">
+          <label>短信验证码</label>
+          <div class="gate-inline">
+            <input type="text" id="lgCode" placeholder="6 位验证码" maxlength="6">
+            <button type="button" class="btn-sms-code" id="lgSmsBtn" onclick="sendSmsCode('login')">获取验证码</button>
+          </div>
+        </div>
+      </div>
+      <button type="submit" class="gate-submit">登录邮箱</button>
+      <div class="gate-msg" id="lgMsg"></div>
+      <div class="gate-tip">教师预置账号初始密码为 123456；也可选择短信验证码登录。</div>
+    </form>
+
+    <form id="gateRegForm" onsubmit="return submitMailRegister(event)" style="display:none;">
+      <div class="gate-notice" id="gateRegNotice" style="display:none;"></div>
+      <div class="gate-field">
+        <label>邮箱账号（别名）</label>
+        <div class="gate-input-row">
+          <input type="text" id="rgAlias" placeholder="3-18 位字母/数字/._-" maxlength="18" autocomplete="username">
+          <span class="suffix">@<span class="gate-domain">example.local</span></span>
+        </div>
+      </div>
+      <div class="gate-field">
+        <label>昵称（作为发件人显示名）</label>
+        <input type="text" id="rgName" placeholder="如 张三" maxlength="12">
+      </div>
+      <div class="gate-field">
+        <label>手机号（模拟，无需真实号码）</label>
+        <input type="text" id="rgPhone" placeholder="11 位手机号，如 13800000000" maxlength="11">
+      </div>
+      <div class="gate-field">
+        <label>图形验证码</label>
+        <div class="captcha-row">
+          <input type="text" id="rgCaptcha" placeholder="不区分大小写" maxlength="4">
+          <canvas id="captchaCanvas" width="96" height="34" onclick="drawCaptcha()" title="点击刷新"></canvas>
+        </div>
+      </div>
+      <div class="gate-field">
+        <label>短信验证码</label>
+        <div class="gate-inline">
+          <input type="text" id="rgCode" placeholder="6 位验证码" maxlength="6">
+          <button type="button" class="btn-sms-code" id="rgSmsBtn" onclick="sendSmsCode('register')">获取验证码</button>
+        </div>
+      </div>
+      <div class="gate-field">
+        <label>密码（至少 6 位）</label>
+        <input type="password" id="rgPwd" placeholder="设置登录密码" autocomplete="new-password">
+      </div>
+      <div class="gate-field">
+        <label>确认密码</label>
+        <input type="password" id="rgPwd2" placeholder="再次输入密码" autocomplete="new-password">
+      </div>
+      <button type="submit" class="gate-submit">注册并登录</button>
+      <div class="gate-msg" id="rgMsg"></div>
+      <div class="gate-tip">邮箱绑定你的学生账号，每人限一个；注册成功后可立即收发邮件。</div>
+    </form>
+  </div>
+</div>
+
+<!-- 模拟手机短信弹窗 -->
+<div class="sms-pop" id="smsPop">
+  <div class="h">📶 新短信 · 局域网邮箱</div>
+  <div>您正在<span id="smsPurposeText">注册邮箱</span>，验证码：</div>
+  <div class="code" id="smsCode">------</div>
+  <div class="f">
+    <span id="smsCountdown">30 秒后关闭</span>
+    <button type="button" onclick="fillSmsCode()">一键填入</button>
+  </div>
+</div>
 
 <div class="layout">
   <!-- 左侧文件夹栏 -->
@@ -211,6 +358,7 @@ body.is-teacher .sidebar-footer { display:none; }
     <!-- 账号工具 -->
     <div class="account-tools">
       <button onclick="openAddressBook()">📇 通讯簿</button>
+      <button onclick="mailLogout()" id="mailLogoutBtn">🚪 退出邮箱</button>
       <button onclick="openSched()">⏰ 定时发送</button>
       <button onclick="openBlacklist()">🚫 黑名单</button>
     </div>
