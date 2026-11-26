@@ -15,7 +15,7 @@ body.is-teacher .mode-tab a.teacher-only { display:inline-block; }
 .layout { flex: 1; min-height: 0; display:flex; }
 
 /* 左侧文件夹栏 */
-.sidebar { width: 220px; background:#fff; border-right:1px solid #e0e4ea; display:flex; flex-direction:column; padding:16px 10px; }
+.sidebar { width: 220px; background:#fff; border-right:1px solid #e0e4ea; display:flex; flex-direction:column; padding:16px 10px; overflow-y:auto; }
 .sidebar .compose-btn { background:#3d7fb5; color:#fff; border:none; padding:10px; border-radius:6px; font-size:14px; cursor:pointer; margin-bottom:14px; font-weight:600; }
 .sidebar .compose-btn:hover { background:#2c5f8a; }
 .sidebar .folder-list { display:flex; flex-direction:column; gap:2px; }
@@ -24,7 +24,7 @@ body.is-teacher .mode-tab a.teacher-only { display:inline-block; }
 .sidebar .folder.active { background:#3d7fb5; color:#fff; }
 .sidebar .folder .count { background:rgba(61,127,181,.2); color:#3d7fb5; padding:1px 7px; border-radius:10px; font-size:11px; font-weight:600; }
 .sidebar .folder.active .count { background:rgba(255,255,255,.3); color:#fff; }
-.sidebar .sidebar-footer { margin-top:auto; padding-top:12px; border-top:1px solid #eee; font-size:11px; color:#999; line-height:1.6; }
+.sidebar .sidebar-footer { margin-top:auto; padding-top:12px; border-top:1px solid #eee; font-size:11px; color:#999; line-height:1.6; flex:none; }
 .sidebar .sidebar-footer .mail-addr { color:#3d7fb5; font-weight:600; word-break:break-all; }
 
 /* 中间邮件列表 */
@@ -132,8 +132,7 @@ body.is-teacher .teacher-admin { display:flex; flex-direction:column; padding:16
 body.is-teacher .teacher-admin .admin-title { font-size:14px; font-weight:700; color:#3d7fb5; border-bottom:2px solid #3d7fb5; padding-bottom:6px; }
 body.is-teacher .teacher-admin .toggle-admin-btn { background:#ff9933; color:#fff; border:none; padding:8px; border-radius:4px; cursor:pointer; font-size:12px; }
 body.is-teacher .teacher-admin .toggle-admin-btn:hover { background:#e6882d; }
-body.is-teacher .sidebar { padding-bottom:0; }
-body.is-teacher .sidebar-footer { display:none; }
+body.is-teacher .sidebar { padding-bottom:8px; }
 
 /* Toast */
 .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#333; color:#fff; padding:10px 20px; border-radius:6px; font-size:13px; z-index:300; display:none; box-shadow:0 4px 16px rgba(0,0,0,.2); }

@@ -431,6 +431,15 @@ if (db.prepare('SELECT COUNT(*) AS c FROM mail_server_config').get().c === 0) {
     created++;
   }
   if (created > 0) console.log(`[seed] 自动创建 ${created} 个邮箱账号`);
+  // 教师邮箱：teacher@example.local（初始密码 123456）
+  const tExist = db.prepare("SELECT id FROM mail_accounts WHERE lower(username)='teacher'").get();
+  if (!tExist) {
+    db.prepare(
+      `INSERT INTO mail_accounts (username, domain, full_address, display_name, password_hash, student_id, phone, claimed, created_at)
+       VALUES (?, ?, ?, ?, ?, NULL, '', 1, ?)`
+    ).run('teacher', cfg.domain, `teacher@${cfg.domain}`, '系统管理员', hashPassword('123456'), now());
+    console.log('[seed] 教师邮箱 teacher@' + cfg.domain + ' 已创建');
+  }
 })();
 
 // 默认设置：允许学生编辑网络模拟配置（教师可在控制台关闭）

@@ -11,6 +11,8 @@
     counts: { inbox: { total: 0, unread: 0 }, sent: { total: 0, unread: 0 }, draft: { total: 0, unread: 0 }, junk: { total: 0, unread: 0 }, trash: { total: 0, unread: 0 } },
     currentMailId: null,
     mailAccount: null,     // 当前绑定的邮箱账号（学生=自己，教师=选中的）
+    ownAddress: '',        // 本人邮箱地址（用于通讯簿“我”的标识）
+    domain: 'example.local',
     smtp_log: [],
     attachments: [],       // 待发送附件 [{id,name,size,stored}]
   };
@@ -124,6 +126,7 @@
     } catch (_) { /* ignore */ }
     if (info && info.account) {
       state.mailAccount = info.account;
+      state.ownAddress = info.account.full_address;
       state.domain = info.domain;
       hideGate();
       updateDomainLabels();
@@ -142,16 +145,19 @@
 
     if (state.role === 'student') {
       if (state.mailAccount) {
+        state.ownAddress = state.mailAccount.full_address;
         document.getElementById('myAddr').textContent = state.mailAccount.full_address;
       } else {
         document.getElementById('myAddr').textContent = '(未登录)';
       }
       return;
     }
-    // 教师：默认显示第一个学生的邮箱
+    // 教师：优先使用教师邮箱 teacher@domain
     try {
       const accounts = await api('GET', '/accounts');
-      state.mailAccount = accounts[0] || null;
+      const teacherAcct = accounts.find(a => String(a.username).toLowerCase() === 'teacher');
+      state.mailAccount = teacherAcct || accounts[0] || null;
+      state.ownAddress = state.mailAccount ? state.mailAccount.full_address : '';
       document.getElementById('myAddr').textContent =
         state.mailAccount ? state.mailAccount.full_address : '(未选择)';
     } catch (e) {
@@ -896,7 +902,7 @@ ${res.log.map(l => `[${new Date(l.ts).toLocaleTimeString('zh-CN')}] ${l.dir === 
       list.innerHTML = '<p style="color:#888;font-size:13px;">没有匹配的联系人</p>';
       return;
     }
-    const myAddr = String(state.mailAccount?.full_address || '').toLowerCase();
+    const myAddr = String(state.ownAddress || state.mailAccount?.full_address || '').toLowerCase();
     list.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
       <thead><tr style="color:#8a94a3;text-align:left;">
         <th style="padding:6px;">姓名</th><th>学号</th><th>邮箱地址</th><th></th>
@@ -1082,6 +1088,7 @@ ${res.log.map(l => `[${new Date(l.ts).toLocaleTimeString('zh-CN')}] ${l.dir === 
     mailToken = r.token;
     sessionStorage.setItem('mailToken', mailToken);
     state.mailAccount = r.account;
+    state.ownAddress = r.account.full_address;
     hideGate();
     toast('邮箱登录成功：' + r.account.full_address, 'success');
     loadMailIdentity().then(refreshAll);
