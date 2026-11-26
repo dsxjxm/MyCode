@@ -48,8 +48,10 @@
     .pc-card.online .pc-status { background: #d1fae5; color: #065f46; }
     .pc-card.offline .pc-status { background: #f3f4f6; color: #6b7280; }
 
-    /* 学生不看左侧配置面板 */
-    .net-student-view .net-sidebar { display: none; }
+    /* 学生可见左侧面板，但为只读（隐藏保存/新增/删除，禁用输入） */
+    .net-student-view .net-sidebar button { display: none; }
+    .net-student-view .net-sidebar input,
+    .net-student-view .net-sidebar select { background: #f3f4f6; color: #6b7280; pointer-events: none; }
 
     /* ===== 中间：SVG 拓扑画布 ===== */
     .net-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #fafbfc; }
