@@ -52,6 +52,24 @@ export function studentSubdirAbs(classFolder, studentFolder, sub) {
   return path.join(studentSpaceAbs(classFolder, studentFolder), sub);
 }
 
+// 兼容 Node 12：递归删除（Node 12 没有 fs.rmSync）
+export function removePath(absPath) {
+  if (typeof fs.rmSync === 'function') {
+    fs.rmSync(absPath, { recursive: true, force: true });
+    return;
+  }
+  if (!fs.existsSync(absPath)) return;
+  const stat = fs.lstatSync(absPath);
+  if (stat.isDirectory()) {
+    for (const name of fs.readdirSync(absPath)) {
+      removePath(path.join(absPath, name));
+    }
+    fs.rmdirSync(absPath);
+  } else {
+    fs.unlinkSync(absPath);
+  }
+}
+
 export function moveToTrash(absPath, label = '') {
   if (!fs.existsSync(absPath)) return null;
   fs.mkdirSync(TRASH_DIR, { recursive: true });

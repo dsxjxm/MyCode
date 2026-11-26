@@ -162,3 +162,16 @@ npm run dev    # 开发模式（后端改动自动重启）
 
 **5. 教师如何关闭学生编辑网络配置**
 教师控制台 →「模块管理」→ 网络模拟卡片中的开关「允许学生编辑 DHCP / DNS / PC 配置」。
+
+---
+
+## 八、Windows 7 离线版（免安装 Node）
+
+Windows 7 无法运行 Node 14 及以上版本（会报 `无法定位程序输入点 GetHostNameW`）。为此单独提供了 **Win7 离线版**压缩包：
+
+- 内置 Node 12.22.12 的 64 位与 32 位运行环境（`node-x64.exe` / `node-x86.exe`），`启动.bat` 按系统架构自动选择
+- 后端已用 esbuild 打包为单个 `dist\server\server.cjs`，无需 npm install、无需联网
+- 要求：Windows 7 **SP1**；建议装齐补丁，至少 KB2999226（UCRT）、KB4474419 / KB4490628（SHA-2）
+- 浏览器：Chrome / Edge 最高 109 版，或 360 极速浏览器、Firefox 115 ESR
+- 使用：解压后双击 `启动.bat`，访问 `http://localhost:3000`；数据保存在 `data\`（由启动脚本指定 `DATA_DIR`）
+

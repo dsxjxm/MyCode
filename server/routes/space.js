@@ -7,6 +7,7 @@ import { buildPreviewToken, requireStudent } from '../auth.js';
 import {
   listTree,
   readTextFile,
+  removePath,
   resolveInside,
   sanitizeName,
   studentSpaceAbs,
@@ -111,7 +112,7 @@ router.post('/delete', (req, res) => {
   const abs = resolveInside(ctx.wwwBase, relPath);
   if (!abs || abs === path.resolve(ctx.wwwBase)) return res.status(400).json({ error: '非法路径' });
   if (!fs.existsSync(abs)) return res.status(404).json({ error: '文件不存在' });
-  fs.rmSync(abs, { recursive: true, force: true });
+  removePath(abs);
   res.json({ ok: true });
 });
 

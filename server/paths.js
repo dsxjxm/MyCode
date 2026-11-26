@@ -2,7 +2,10 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
+// 同时兼容 ESM 源码运行与打包后的 CJS 运行
+const here = typeof __dirname === 'undefined'
+  ? path.dirname(fileURLToPath(import.meta.url))
+  : __dirname;
 
 export const ROOT = path.resolve(here, '..');
 

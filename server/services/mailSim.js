@@ -406,7 +406,8 @@ const MAX_ATTACH_EACH = 10 * 1024 * 1024; // 10MB / 个
 
 export function saveAttachment(buffer, originalName) {
   const safeName = path.basename(originalName || 'file').replace(/[\\/:*?"<>|]/g, '_').slice(0, 120);
-  const id = crypto.randomUUID();
+  // 兼容 Node 12：随机十六进制 ID（无需 randomUUID）
+  const id = crypto.randomBytes(16).toString('hex');
   const stored = `${id}__${safeName}`;
   fs.writeFileSync(path.join(MAIL_ATTACH_DIR, stored), buffer);
   return {

@@ -91,14 +91,25 @@ export function requireStudent(req, res, next) {
   res.status(401).json({ error: '请先以学生身份登录' });
 }
 
+// 兼容 Node 12：手动实现 base64url（Node 12 不支持 base64url 编码名）
+function toBase64Url(buf) {
+  return Buffer.from(buf).toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function fromBase64Url(str) {
+  const b64 = String(str).replace(/-/g, '+').replace(/_/g, '/');
+  return Buffer.from(b64, 'base64');
+}
+
 function sign(data) {
-  return crypto.createHmac('sha256', SECRET).update(data).digest('base64url');
+  return toBase64Url(crypto.createHmac('sha256', SECRET).update(data).digest());
 }
 
 export function buildPreviewToken(studentId, ttl = 12 * 60 * 60 * 1000) {
-  const payload = Buffer.from(
-    JSON.stringify({ sid: studentId, exp: Date.now() + ttl })
-  ).toString('base64url');
+  const payload = toBase64Url(
+    Buffer.from(JSON.stringify({ sid: studentId, exp: Date.now() + ttl }))
+  );
   return `${payload}.${sign(payload)}`;
 }
 
@@ -111,7 +122,7 @@ export function verifyPreviewToken(token) {
   const b = Buffer.from(expected);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   try {
-    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    const data = JSON.parse(fromBase64Url(payload).toString('utf8'));
     if (!data || data.exp < Date.now()) return null;
     return data;
   } catch {

@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import express from 'express';
 import { ensureDirs, PUBLIC_DIR } from './paths.js';
-import './db.js';
+import { dbReady } from './db.js';
 import { loadUser } from './auth.js';
 import authRoutes from './routes/auth.js';
 import classRoutes from './routes/classes.js';
@@ -99,20 +99,23 @@ app.use((err, req, res, _next) => {
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
-const server = http.createServer(app);
-server.listen(PORT, HOST, () => {
-  startMailScheduler();
-  const interfaces = os.networkInterfaces();
-  const addresses = Object.values(interfaces)
-    .flat()
-    .filter((item) => item && item.family === 'IPv4' && !item.internal)
-    .map((item) => item.address);
-  console.log('');
-  console.log('  局域网仿真实训教学平台 已启动');
-  console.log(`  本机访问：http://localhost:${PORT}`);
-  for (const address of addresses) {
-    console.log(`  局域网访问：http://${address}:${PORT}`);
-  }
-  console.log('  教师初始账号：admin / admin123');
-  console.log('');
+// 等待数据库初始化完成后再监听端口
+dbReady.then(() => {
+  const server = http.createServer(app);
+  server.listen(PORT, HOST, () => {
+    startMailScheduler();
+    const interfaces = os.networkInterfaces();
+    const addresses = Object.values(interfaces)
+      .flat()
+      .filter((item) => item && item.family === 'IPv4' && !item.internal)
+      .map((item) => item.address);
+    console.log('');
+    console.log('  局域网仿真实训教学平台 已启动');
+    console.log(`  本机访问：http://localhost:${PORT}`);
+    for (const address of addresses) {
+      console.log(`  局域网访问：http://${address}:${PORT}`);
+    }
+    console.log('  教师初始账号：admin / admin123');
+    console.log('');
+  });
 });

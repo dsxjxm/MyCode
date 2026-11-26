@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { db, now } from '../db.js';
 import { requireTeacher } from '../auth.js';
 import { CLASSES_DIR } from '../paths.js';
-import { createClassFolder, moveToTrash } from '../storage.js';
+import { createClassFolder, moveToTrash, removePath } from '../storage.js';
 
 const router = Router();
 router.use(requireTeacher);
@@ -36,7 +36,7 @@ router.post('/', (req, res) => {
     const row = db.prepare('SELECT * FROM classes WHERE id = ?').get(Number(result.lastInsertRowid));
     res.status(201).json({ class: row });
   } catch (err) {
-    fs.rmSync(path.join(CLASSES_DIR, folder), { recursive: true, force: true });
+    removePath(path.join(CLASSES_DIR, folder));
     res.status(500).json({ error: '创建班级失败：' + err.message });
   }
 });

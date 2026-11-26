@@ -3,23 +3,17 @@
 import initSqlJs from 'sql.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { DB_FILE, ensureDirs, DATA_DIR } from './paths.js';
 import { hashPassword } from './password.js';
 import { createClassFolder, createStudentFolder } from './storage.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 ensureDirs();
 
-const SQL = await initSqlJs();
+// sql.js 初始化是异步的（为兼容 Node 12 不使用顶层 await）
+let innerDb = null;
 
-// 从文件加载已有数据库，不存在则新建
-let innerDb;
-if (fs.existsSync(DB_FILE)) {
-  const buf = fs.readFileSync(DB_FILE);
-  innerDb = new SQL.Database(new Uint8Array(buf));
-} else {
-  innerDb = new SQL.Database();
+function now() {
+  return new Date().toISOString();
 }
 
 // 写操作后持久化到文件（sql.js 是内存 DB）
@@ -94,11 +88,18 @@ class DbWrapper {
 
 export const db = new DbWrapper();
 
-// ===== Schema Init =====
-db.exec('PRAGMA foreign_keys = ON;');
-// sql.js 不支持 WAL（纯内存数据库），跳过 journal_mode
+async function bootstrap() {
+  const SQL = await initSqlJs();
+  // 从文件加载已有数据库，不存在则新建
+  innerDb = fs.existsSync(DB_FILE)
+    ? new SQL.Database(new Uint8Array(fs.readFileSync(DB_FILE)))
+    : new SQL.Database();
 
-db.exec(`
+  // ===== Schema Init =====
+  db.exec('PRAGMA foreign_keys = ON;');
+  // sql.js 不支持 WAL（纯内存数据库），跳过 journal_mode
+
+  db.exec(`
 CREATE TABLE IF NOT EXISTS teachers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL UNIQUE,
@@ -311,10 +312,6 @@ CREATE TABLE IF NOT EXISTS mail_sessions (
 );
 `);
 
-function now() {
-  return new Date().toISOString();
-}
-
 // 轻量迁移：为旧库补充新列
 (function migrateMailAccountColumns() {
   const cols = db.prepare('PRAGMA table_info(mail_accounts)').all().map((c) => c.name);
@@ -455,5 +452,12 @@ if (db.prepare('SELECT COUNT(*) AS c FROM mail_server_config').get().c === 0) {
     `INSERT OR IGNORE INTO app_settings (key, value) VALUES ('student_can_edit_network', '1')`
   ).run();
 })();
+}
+
+// 初始化完成信号：index.js 等待它之后再监听端口
+export const dbReady = bootstrap().catch((err) => {
+  console.error('[db] 数据库初始化失败:', err);
+  process.exit(1);
+});
 
 export { now };

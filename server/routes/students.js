@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
-import archiver from 'archiver';
+import * as archiverModule from 'archiver';
+
+const archiver = archiverModule.default || archiverModule;
 
 // 兼容 archiver 5（默认导出函数）与 archiver 8（导出 ZipArchive 类）
 function createZip(opts = {}) {
