@@ -59,17 +59,19 @@ function renderTopology() {
   const svg = document.getElementById('topoSvg');
   const ns = 'http://www.w3.org/2000/svg';
   svg.setAttribute('viewBox', `0 0 ${SVG_W} ${SVG_H}`);
-  svg.innerHTML = '';
+  // 保留 <defs>（渐变、滤镜定义），只清除旧的节点与连线
+  const defsEl = svg.querySelector('defs');
+  svg.innerHTML = defsEl ? defsEl.outerHTML : '';
 
   // Server 节点（固定）
   const serverG = document.createElementNS(ns, 'g');
   serverG.setAttribute('class', 'node-group server');
   serverG.setAttribute('transform', `translate(${SERVER_POS.x - 80}, ${SERVER_POS.y})`);
   serverG.innerHTML = `
-    <rect class="node-body" x="0" y="0" width="160" height="70" rx="8" fill="url(#serverGrad)" filter="url(#softShadow)"/>
-    <text x="80" y="28" text-anchor="middle" fill="#fff" font-size="13" font-weight="600">DNS / DHCP 服务器</text>
-    <text x="80" y="48" text-anchor="middle" fill="#dbeafe" font-size="11">${state.dhcp?.server_ip || '...'}</text>
-    <circle class="node-status-dot online" cx="12" cy="12" r="5"/>
+    <rect class="node-body" x="0" y="0" width="160" height="70" rx="8" fill="url(#serverGrad)" stroke="#1e40af" stroke-width="1" filter="url(#softShadow)"/>
+    <text x="80" y="30" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">DNS / DHCP 服务器</text>
+    <text x="80" y="50" text-anchor="middle" fill="#dbeafe" font-size="11">${state.dhcp?.server_ip || '...'}</text>
+    <circle class="node-status-dot online" cx="14" cy="13" r="6"/>
   `;
   svg.appendChild(serverG);
 
@@ -94,14 +96,14 @@ function renderTopology() {
 
     // PC 节点
     const g = document.createElementNS(ns, 'g');
-    g.setAttribute('class', 'node-group');
+    g.setAttribute('class', 'node-group ' + (pc.status === 'online' ? 'online' : 'offline'));
     g.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
     g.dataset.id = pc.id;
     g.innerHTML = `
-      <rect class="node-body" x="0" y="0" width="120" height="60" rx="6" fill="url(#pcGrad)" filter="url(#softShadow)"/>
-      <text x="60" y="22" text-anchor="middle" fill="#fff" font-size="12" font-weight="500">${pc.name}</text>
-      <text x="60" y="40" text-anchor="middle" fill="#e2e8f0" font-size="10">${pc.current_ip || '未连接'}</text>
-      <circle class="node-status-dot ${pc.status}" cx="110" cy="10" r="5"/>
+      <rect class="node-body" x="0" y="0" width="120" height="60" rx="6" fill="url(#pcGrad)" stroke="#334155" stroke-width="1" filter="url(#softShadow)"/>
+      <text x="60" y="24" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="500">${pc.name}</text>
+      <text x="60" y="43" text-anchor="middle" fill="#e2e8f0" font-size="10">${pc.current_ip || '未连接'}</text>
+      <circle class="node-status-dot ${pc.status}" cx="108" cy="12" r="6"/>
     `;
 
     // 拖放 + 点击

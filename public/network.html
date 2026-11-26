@@ -63,6 +63,8 @@
     .node-group { cursor: grab; }
     .node-group:active { cursor: grabbing; }
     .node-group.server { cursor: default; }
+    .node-group.offline { opacity: .72; }
+    .node-group:hover .node-body { filter: drop-shadow(0 4px 8px rgba(0,0,0,.22)); }
 
     .node-body { filter: drop-shadow(0 2px 3px rgba(0,0,0,.12)); }
     .node-body rect.server { fill: linear-gradient(#1e40af, #2563eb); }
