@@ -14,6 +14,34 @@ function requireLogin(req, res, next) {
   next();
 }
 
+// 学生是否允许修改网络配置（教师可在控制台开关）
+function studentEditAllowed() {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key='student_can_edit_network'").get();
+  return !row || row.value !== '0';
+}
+
+// 教师始终可改；学生需设置允许
+function canModifyNetwork(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: '未登录' });
+  if (req.user.role === 'teacher') return next();
+  if (studentEditAllowed()) return next();
+  return res.status(403).json({ error: '教师已禁止学生修改网络配置' });
+}
+
+// ====== 平台设置 ======
+router.get('/settings', requireLogin, (_req, res) => {
+  res.json({ student_can_edit_network: studentEditAllowed() });
+});
+
+router.put('/settings', requireTeacher, (req, res) => {
+  const val = req.body && req.body.student_can_edit_network ? '1' : '0';
+  db.prepare(
+    `INSERT INTO app_settings (key, value) VALUES ('student_can_edit_network', ?)
+     ON CONFLICT(key) DO UPDATE SET value=excluded.value`
+  ).run(val);
+  res.json({ student_can_edit_network: val === '1' });
+});
+
 function contextPc(pcId) {
   return db.prepare('SELECT * FROM network_pcs WHERE id = ?').get(pcId);
 }
@@ -34,7 +62,7 @@ router.get('/topology', requireLogin, (req, res) => {
 });
 
 // 保存 PC 画布坐标（所有登录用户可改，简单）
-router.put('/pcs/:id/pos', requireLogin, (req, res) => {
+router.put('/pcs/:id/pos', canModifyNetwork, (req, res) => {
   const { pos_x, pos_y } = req.body || {};
   if (typeof pos_x !== 'number' || typeof pos_y !== 'number') {
     return res.status(400).json({ error: 'pos_x 和 pos_y 必须是数字' });
@@ -68,7 +96,7 @@ router.post('/pcs/:id/offline', requireLogin, (req, res) => {
 });
 
 // ====== PC CRUD (教师) ======
-router.post('/pcs', requireTeacher, (req, res) => {
+router.post('/pcs', canModifyNetwork, (req, res) => {
   const { name, mac_address, dhcp_enabled = 1, static_ip, pos_x = 100, pos_y = 100 } = req.body || {};
   if (!name || !mac_address) return res.status(400).json({ error: 'name 和 mac_address 必填' });
   const r = db.prepare(
@@ -78,7 +106,7 @@ router.post('/pcs', requireTeacher, (req, res) => {
   res.json({ pc: contextPc(r.lastInsertRowid) });
 });
 
-router.put('/pcs/:id', requireTeacher, (req, res) => {
+router.put('/pcs/:id', canModifyNetwork, (req, res) => {
   const { name, mac_address, dhcp_enabled, static_ip, dns_servers } = req.body || {};
   db.prepare(
     `UPDATE network_pcs SET name=COALESCE(?, name), mac_address=COALESCE(?, mac_address),
@@ -88,7 +116,7 @@ router.put('/pcs/:id', requireTeacher, (req, res) => {
   res.json({ pc: contextPc(req.params.id) });
 });
 
-router.delete('/pcs/:id', requireTeacher, (req, res) => {
+router.delete('/pcs/:id', canModifyNetwork, (req, res) => {
   db.prepare('DELETE FROM network_pcs WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -96,7 +124,7 @@ router.delete('/pcs/:id', requireTeacher, (req, res) => {
 // ====== DHCP 配置 (教师) ======
 router.get('/dhcp', requireLogin, (_req, res) => res.json(getDhcpConfig()));
 
-router.put('/dhcp', requireTeacher, (req, res) => {
+router.put('/dhcp', canModifyNetwork, (req, res) => {
   const { server_ip, subnet_mask, gateway, dns_servers, pool_start, pool_end, lease_seconds } = req.body || {};
   const cfg = getDhcpConfig();
   if (!server_ip || !subnet_mask || !pool_start || !pool_end) {
@@ -124,7 +152,7 @@ router.get('/dns', requireLogin, (_req, res) => {
   res.json({ records });
 });
 
-router.post('/dns', requireTeacher, (req, res) => {
+router.post('/dns', canModifyNetwork, (req, res) => {
   const { type, name, value, ttl = 300 } = req.body || {};
   const validTypes = ['A', 'AAAA', 'CNAME', 'NS', 'MX', 'PTR', 'TXT', 'SRV'];
   if (!type || !validTypes.includes(type.toUpperCase())) {
@@ -137,7 +165,7 @@ router.post('/dns', requireTeacher, (req, res) => {
   res.json({ record: db.prepare('SELECT * FROM dns_records WHERE id=?').get(r.lastInsertRowid) });
 });
 
-router.put('/dns/:id', requireTeacher, (req, res) => {
+router.put('/dns/:id', canModifyNetwork, (req, res) => {
   const { type, name, value, ttl } = req.body || {};
   db.prepare(
     `UPDATE dns_records SET type=COALESCE(?, type), name=COALESCE(?, name),
@@ -146,7 +174,7 @@ router.put('/dns/:id', requireTeacher, (req, res) => {
   res.json({ record: db.prepare('SELECT * FROM dns_records WHERE id=?').get(req.params.id) });
 });
 
-router.delete('/dns/:id', requireTeacher, (req, res) => {
+router.delete('/dns/:id', canModifyNetwork, (req, res) => {
   db.prepare('DELETE FROM dns_records WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });

@@ -128,6 +128,23 @@ router.get('/accounts/validate-address', requireLogin, (req, res) => {
   res.json({ valid: !exists, exists, info });
 });
 
+// 通讯簿：学生只看本班同学，教师看全部
+router.get('/address-book', requireLogin, (req, res) => {
+  const baseSql = `SELECT a.id, a.full_address, a.display_name,
+                          s.student_no, s.name AS real_name, c.name AS class_name
+                   FROM mail_accounts a
+                   LEFT JOIN students s ON a.student_id = s.id
+                   LEFT JOIN classes c ON c.id = s.class_id`;
+  if (req.user.role === 'student') {
+    const me = db.prepare('SELECT class_id FROM students WHERE id = ?').get(req.user.id);
+    if (!me || !me.class_id) return res.json([]);
+    const rows = db.prepare(`${baseSql} WHERE s.class_id = ? ORDER BY s.student_no`).all(me.class_id);
+    return res.json(rows);
+  }
+  const rows = db.prepare(`${baseSql} ORDER BY c.name, s.student_no`).all();
+  res.json(rows);
+});
+
 // ==================== 发送邮件 ====================
 
 router.post('/send', bindMailAccount, needMailAccount, (req, res) => {

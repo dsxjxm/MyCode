@@ -32,9 +32,14 @@ async function initAuth() {
   document.getElementById('userChip').textContent =
     `${cls ? cls + ' · ' : ''}${u.name}（${u.username}）`;
 
-  if (u.role === 'student') {
-    document.body.classList.add('net-student-view');
-  }
+  // 是否允许编辑：教师始终可改，学生取决于控制台开关
+  let allowStudent = true;
+  try {
+    const st = await (await fetch('/api/network/settings')).json();
+    allowStudent = !!st.student_can_edit_network;
+  } catch (_) { /* 忽略，默认允许 */ }
+  state.canEdit = u.role === 'teacher' || allowStudent;
+  document.body.classList.toggle('net-readonly', !state.canEdit);
 
   document.getElementById('logoutBtn').addEventListener('click', async (e) => {
     e.preventDefault();
@@ -136,6 +141,7 @@ function attachNodeInteraction(g, pc) {
 
   g.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
+    if (!state.canEdit) return;
     e.stopPropagation();
     const p = svgPoint(e);
     const cur = g.transform.baseVal.getItem(0);

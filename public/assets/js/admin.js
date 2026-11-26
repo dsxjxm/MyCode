@@ -47,6 +47,29 @@ async function init() {
   await loadClasses();
   await loadStudents();
   await loadOverview();
+  loadModuleSettings();
+}
+
+// 模块设置：是否允许学生编辑网络配置
+async function loadModuleSettings() {
+  const box = document.getElementById('netStudentEdit');
+  if (!box) return;
+  try {
+    const s = await api('/api/network/settings');
+    box.checked = !!s.student_can_edit_network;
+  } catch (_) { /* 忽略 */ }
+  box.addEventListener('change', async () => {
+    try {
+      await api('/api/network/settings', {
+        method: 'PUT',
+        body: { student_can_edit_network: box.checked }
+      });
+      toast(box.checked ? '已允许学生编辑网络配置' : '已禁止学生编辑网络配置', 'success');
+    } catch (err) {
+      box.checked = !box.checked;
+      toast(err.message || '保存失败', 'error');
+    }
+  });
 }
 
 function bindNav() {

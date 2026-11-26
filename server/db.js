@@ -278,6 +278,12 @@ CREATE TABLE IF NOT EXISTS mail_scheduled (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sched_pending ON mail_scheduled(status, send_at);
+
+-- 平台全局设置（键值对）
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `);
 
 function now() {
@@ -389,6 +395,13 @@ if (db.prepare('SELECT COUNT(*) AS c FROM mail_server_config').get().c === 0) {
     created++;
   }
   if (created > 0) console.log(`[seed] 自动创建 ${created} 个邮箱账号`);
+})();
+
+// 默认设置：允许学生编辑网络模拟配置（教师可在控制台关闭）
+(function seedSettings() {
+  db.prepare(
+    `INSERT OR IGNORE INTO app_settings (key, value) VALUES ('student_can_edit_network', '1')`
+  ).run();
 })();
 
 export { now };

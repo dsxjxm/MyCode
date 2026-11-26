@@ -16,6 +16,8 @@
     .m-tag.teacher { background: #e8f2fb; color: #2c5f8a; }
     .m-tag.student { background: #fdf2e3; color: #b9761f; }
     .module-card .m-actions { display: flex; gap: 8px; }
+    .module-card .m-switch { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #3b4a5f; background: #f7f9fc; border-radius: 6px; padding: 8px 10px; }
+    .module-card .m-switch input { width: 16px; height: 16px; accent-color: #2c5f8a; cursor: pointer; }
   </style>
 </head>
 <body class="app-body">
@@ -169,6 +171,10 @@
             <div class="m-head"><span class="m-ico">🖧</span><h3>网络模拟 · DNS / DHCP</h3></div>
             <p>配置 DHCP 地址池、网关与 DNS 解析记录，管理 PC 拓扑，并运行 ipconfig / ping / nslookup 等命令。</p>
             <span class="m-tag teacher">教师可管理</span>
+            <div class="m-switch">
+              <input type="checkbox" id="netStudentEdit">
+              <label for="netStudentEdit">允许学生编辑 DHCP / DNS / PC 配置</label>
+            </div>
             <div class="m-actions">
               <a class="btn btn-primary btn-sm" href="/network.html" target="_blank" rel="noopener">打开管理</a>
             </div>

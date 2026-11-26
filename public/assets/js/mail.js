@@ -840,6 +840,58 @@ ${res.log.map(l => `[${new Date(l.ts).toLocaleTimeString('zh-CN')}] ${l.dir === 
     }
   }
 
+  // ========== 通讯簿 ==========
+  let _bookContacts = [];
+  async function openAddressBook() {
+    document.getElementById('bookModal').classList.add('show');
+    const list = document.getElementById('bookList');
+    list.innerHTML = '<p style="color:#888;font-size:13px;">加载中…</p>';
+    try {
+      _bookContacts = await api('GET', '/address-book');
+    } catch (e) {
+      list.innerHTML = `<p style="color:#c0392b;font-size:13px;">加载失败：${escapeHtml(e.message)}</p>`;
+      return;
+    }
+    const search = document.getElementById('bookSearch');
+    search.value = '';
+    search.oninput = () => renderBook(search.value.trim().toLowerCase());
+    renderBook('');
+  }
+  function renderBook(kw) {
+    const list = document.getElementById('bookList');
+    const rows = _bookContacts.filter((c) => !kw
+      || String(c.full_address || '').toLowerCase().includes(kw)
+      || String(c.display_name || '').toLowerCase().includes(kw)
+      || String(c.real_name || '').toLowerCase().includes(kw)
+      || String(c.student_no || '').toLowerCase().includes(kw));
+    if (!rows.length) {
+      list.innerHTML = '<p style="color:#888;font-size:13px;">没有匹配的联系人</p>';
+      return;
+    }
+    list.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="color:#8a94a3;text-align:left;">
+        <th style="padding:6px;">姓名</th><th>学号</th><th>邮箱地址</th><th></th>
+      </tr></thead>
+      <tbody>${rows.map((c) => `<tr style="border-top:1px solid #eef1f5;">
+        <td style="padding:7px 6px;">${escapeHtml(c.display_name || c.real_name || '')}
+          <div style="color:#9aa5b1;font-size:11px;">${escapeHtml(c.class_name || '')}</div></td>
+        <td style="padding:7px 6px;color:#666;">${escapeHtml(c.student_no || '')}</td>
+        <td style="padding:7px 6px;color:#2c5f8a;">${escapeHtml(c.full_address || '')}</td>
+        <td style="padding:7px 6px;text-align:right;">
+          <button class="btn-sched" style="padding:4px 10px;" onclick="useContact('${escapeAttr(c.full_address || '')}')">写邮件</button>
+        </td>
+      </tr>`).join('')}</tbody></table>`;
+  }
+  function useContact(address) {
+    closeAddressBook();
+    openCompose();
+    document.getElementById('toInput').value = address;
+    document.getElementById('subjectInput').focus();
+  }
+  function closeAddressBook() {
+    document.getElementById('bookModal').classList.remove('show');
+  }
+
   // ========== 导出到全局 ==========
   window.switchFolder = switchFolder;
   window.refresh = refresh;
@@ -866,6 +918,9 @@ ${res.log.map(l => `[${new Date(l.ts).toLocaleTimeString('zh-CN')}] ${l.dir === 
   window.addBlacklistAddress = addBlacklistAddress;
   window.removeBlacklistAddress = removeBlacklistAddress;
   window.blacklistFromMail = blacklistFromMail;
+  window.openAddressBook = openAddressBook;
+  window.closeAddressBook = closeAddressBook;
+  window.useContact = useContact;
   window.openAdmin = openAdmin;
   window.closeAdmin = closeAdmin;
   window.saveMailConfig = saveMailConfig;

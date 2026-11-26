@@ -210,6 +210,7 @@ body.is-teacher .sidebar-footer { display:none; }
 
     <!-- 账号工具 -->
     <div class="account-tools">
+      <button onclick="openAddressBook()">📇 通讯簿</button>
       <button onclick="openSched()">⏰ 定时发送</button>
       <button onclick="openBlacklist()">🚫 黑名单</button>
     </div>
@@ -336,6 +337,20 @@ body.is-teacher .sidebar-footer { display:none; }
       <button class="close" onclick="closeBlacklist()">×</button>
     </header>
     <div class="tab-content" id="blacklistContent"></div>
+  </div>
+</div>
+
+<!-- 通讯簿弹窗 -->
+<div class="admin-modal" id="bookModal">
+  <div class="panel" style="width:700px;">
+    <header>
+      <h3>📇 通讯簿</h3>
+      <button class="close" onclick="closeAddressBook()">×</button>
+    </header>
+    <div class="tab-content">
+      <input type="text" id="bookSearch" placeholder="搜索姓名 / 学号 / 邮箱" style="width:100%;padding:8px 10px;border:1px solid #d5dbe3;border-radius:4px;margin-bottom:10px;box-sizing:border-box;">
+      <div id="bookList" style="max-height:430px;overflow:auto;"></div>
+    </div>
   </div>
 </div>
 
