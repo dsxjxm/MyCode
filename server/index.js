@@ -14,6 +14,7 @@ import noticeRoutes from './routes/notices.js';
 import terminalRoutes from './routes/terminal.js';
 import networkRoutes from './routes/network.js';
 import mailRoutes from './routes/mail.js';
+import { startMailScheduler } from './services/mailSim.js';
 
 ensureDirs();
 
@@ -100,6 +101,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 const server = http.createServer(app);
 server.listen(PORT, HOST, () => {
+  startMailScheduler();
   const interfaces = os.networkInterfaces();
   const addresses = Object.values(interfaces)
     .flat()

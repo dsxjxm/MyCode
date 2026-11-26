@@ -1,7 +1,11 @@
 // SMTP / POP3 协议模拟器 — 生成协议交互日志 + 执行业务逻辑
 // 所有发信操作都记录完整 SMTP 命令序列，让前端可以实时展示"协议调试面板"
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
 import { db } from '../db.js';
 import { hashPassword, verifyPassword } from '../password.js';
+import { MAIL_ATTACH_DIR } from '../paths.js';
 
 // ==================== 工具函数 ====================
 
@@ -85,6 +89,12 @@ export function smtpSend({ fromAddress, fromAccountId, toAddresses, subject, bod
     if (!acct) {
       add(`RCPT TO:<${info.full}>`, `550 5.1.1 <${info.full}> User unknown`);
       rejected.push({ addr: info.full, reason: '用户不存在' });
+      continue;
+    }
+    // 黑名单拒收：收件人把发件人拉黑了
+    if (isBlacklisted(acct.id, fromInfo.full)) {
+      add(`RCPT TO:<${info.full}>`, `550 5.7.1 Sender <${fromInfo.full}> blocked by recipient`);
+      rejected.push({ addr: info.full, reason: '收件人已将你加入黑名单' });
       continue;
     }
     add(`RCPT TO:<${info.full}>`, `250 2.1.5 Ok`);
@@ -224,7 +234,7 @@ export function listMails(accountId, folder, { limit = 50, offset = 0, starOnly 
   let sql = `
     SELECT mb.id AS mailbox_id, mb.folder, mb.is_read, mb.is_starred, mb.deleted_at,
            m.id, m.sender_address, m.sender_name, m.recipient_address, m.subject,
-           m.size_bytes, m.created_at, m.smtp_log
+           m.body, m.size_bytes, m.created_at, m.smtp_log
     FROM mail_mailboxes mb
     JOIN mail_messages m ON mb.message_id = m.id
     WHERE mb.account_id = ? AND mb.folder = ?
@@ -385,4 +395,170 @@ export function updateConfig(patch) {
     `UPDATE mail_server_config SET domain = ?, smtp_port = ?, pop3_port = ?, max_size_kb = ?, enabled = ?, updated_at = ? WHERE id = ?`
   ).run(merged.domain, merged.smtp_port, merged.pop3_port, merged.max_size_kb, merged.enabled, merged.updated_at, merged.id);
   return merged;
+}
+
+// ==================== 附件 ====================
+
+const MAX_ATTACH_COUNT = 5;
+const MAX_ATTACH_EACH = 10 * 1024 * 1024; // 10MB / 个
+
+export function saveAttachment(buffer, originalName) {
+  const safeName = path.basename(originalName || 'file').replace(/[\\/:*?"<>|]/g, '_').slice(0, 120);
+  const id = crypto.randomUUID();
+  const stored = `${id}__${safeName}`;
+  fs.writeFileSync(path.join(MAIL_ATTACH_DIR, stored), buffer);
+  return {
+    id,
+    name: safeName,
+    size: buffer.length,
+    stored
+  };
+}
+
+export function attachmentLimits() {
+  return { maxCount: MAX_ATTACH_COUNT, maxEach: MAX_ATTACH_EACH };
+}
+
+// 通过 stored 名取绝对路径（只允许 mailAttach 目录内）
+export function resolveAttachment(stored) {
+  if (!stored || !/^[a-f0-9-]+__/.test(stored)) return null;
+  const abs = path.join(MAIL_ATTACH_DIR, path.basename(stored));
+  if (!abs.startsWith(MAIL_ATTACH_DIR)) return null;
+  if (!fs.existsSync(abs)) return null;
+  return abs;
+}
+
+// 判断某账号的某个邮件是否引用了该附件（用于下载鉴权）
+export function canAccessAttachment(accountId, attachmentId) {
+  const row = db.prepare(
+    `SELECT m.attachments FROM mail_mailboxes mb
+     JOIN mail_messages m ON mb.message_id = m.id
+     WHERE mb.account_id = ?`
+  ).all(accountId);
+  for (const r of row) {
+    try {
+      const arr = JSON.parse(r.attachments || '[]');
+      if (arr.some(a => a.id === attachmentId)) return true;
+    } catch { /* ignore */ }
+  }
+  return false;
+}
+
+// ==================== 黑名单 ====================
+
+export function isBlacklisted(accountId, senderAddress) {
+  if (!accountId || !senderAddress) return false;
+  const row = db.prepare(
+    'SELECT 1 AS x FROM mail_blacklist WHERE account_id = ? AND blocked_address = ?'
+  ).get(accountId, String(senderAddress).toLowerCase());
+  return !!row;
+}
+
+export function listBlacklist(accountId) {
+  return db.prepare(
+    'SELECT * FROM mail_blacklist WHERE account_id = ? ORDER BY created_at DESC'
+  ).all(accountId);
+}
+
+export function addBlacklist(accountId, address) {
+  const addr = String(address || '').trim().toLowerCase();
+  if (!parseEmailAddress(addr)) return { ok: false, error: '邮箱地址格式错误' };
+  const r = db.prepare(
+    `INSERT OR IGNORE INTO mail_blacklist (account_id, blocked_address, created_at) VALUES (?, ?, ?)`
+  ).run(accountId, addr, new Date().toISOString());
+  return { ok: true, changes: r.changes };
+}
+
+export function removeBlacklist(accountId, id) {
+  return db.prepare('DELETE FROM mail_blacklist WHERE id = ? AND account_id = ?').run(Number(id), accountId);
+}
+
+// ==================== 定时发送 ====================
+
+export function createScheduled(accountId, { to, cc, subject, body, htmlBody, attachments, sendAt }) {
+  const r = db.prepare(
+    `INSERT INTO mail_scheduled (account_id, to_addresses, cc_addresses, subject, body, html_body, attachments, send_at, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
+  ).run(
+    accountId,
+    JSON.stringify(to || []),
+    JSON.stringify(cc || []),
+    subject || '',
+    body || '',
+    htmlBody || '',
+    JSON.stringify(attachments || []),
+    Number(sendAt),
+    new Date().toISOString()
+  );
+  return Number(r.lastInsertRowid);
+}
+
+export function listScheduled(accountId) {
+  const rows = db.prepare(
+    `SELECT * FROM mail_scheduled WHERE account_id = ? ORDER BY send_at ASC`
+  ).all(accountId);
+  return rows.map(r => {
+    try { r.to_addresses = JSON.parse(r.to_addresses || '[]'); } catch { r.to_addresses = []; }
+    try { r.cc_addresses = JSON.parse(r.cc_addresses || '[]'); } catch { r.cc_addresses = []; }
+    try { r.attachments = JSON.parse(r.attachments || '[]'); } catch { r.attachments = []; }
+    return r;
+  });
+}
+
+export function cancelScheduled(accountId, id) {
+  return db.prepare(
+    `UPDATE mail_scheduled SET status = 'cancelled' WHERE id = ? AND account_id = ? AND status = 'pending'`
+  ).run(Number(id), accountId);
+}
+
+// 执行到期任务；由 index.js 的定时器周期性调用
+export function runDueScheduled() {
+  const nowMs = Date.now();
+  const due = db.prepare(
+    `SELECT * FROM mail_scheduled WHERE status = 'pending' AND send_at <= ? ORDER BY send_at ASC LIMIT 20`
+  ).all(nowMs);
+  const results = [];
+  for (const job of due) {
+    const account = db.prepare('SELECT * FROM mail_accounts WHERE id = ?').get(job.account_id);
+    if (!account) {
+      db.prepare(`UPDATE mail_scheduled SET status = 'failed', error = ? WHERE id = ?`)
+        .run('账号不存在', job.id);
+      continue;
+    }
+    let to = [], cc = [], atts = [];
+    try { to = JSON.parse(job.to_addresses || '[]'); } catch {}
+    try { cc = JSON.parse(job.cc_addresses || '[]'); } catch {}
+    try { atts = JSON.parse(job.attachments || '[]'); } catch {}
+    const r = smtpSend({
+      fromAddress: account.full_address,
+      fromAccountId: account.id,
+      toAddresses: to,
+      ccAddresses: cc,
+      subject: job.subject,
+      body: job.body,
+      htmlBody: job.html_body,
+      attachments: atts
+    });
+    if (r.ok) {
+      db.prepare(`UPDATE mail_scheduled SET status = 'sent', error = '' WHERE id = ?`).run(job.id);
+    } else {
+      db.prepare(`UPDATE mail_scheduled SET status = 'failed', error = ? WHERE id = ?`)
+        .run(r.error || '发送失败', job.id);
+    }
+    results.push({ id: job.id, ok: r.ok });
+  }
+  return results;
+}
+
+export function startMailScheduler(intervalMs = 15000) {
+  const timer = setInterval(() => {
+    try {
+      const rs = runDueScheduled();
+      if (rs.length) console.log(`[mail] 定时发送执行 ${rs.length} 封`);
+    } catch (e) {
+      console.warn('[mail] 定时发送调度异常:', e.message);
+    }
+  }, intervalMs);
+  if (timer.unref) timer.unref();
+  return timer;
 }

@@ -1,16 +1,21 @@
 // Module 4: Mail Server (SMTP / POP3) 路由
 import { Router } from 'express';
+import multer from 'multer';
 import { db } from '../db.js';
 import { requireTeacher } from '../auth.js';
 import {
   getMailConfig, smtpSend, pop3Session, findAccountByAddress, listAllAccounts,
   listMails, getMailDetail, moveMail, deleteMail, toggleStar, markAllRead,
   getFolderCounts, saveDraft, createAccount, deleteAccount, updateAccountPassword,
-  resetAllAccountPasswords, updateConfig, parseEmailAddress
+  resetAllAccountPasswords, updateConfig, parseEmailAddress,
+  saveAttachment, resolveAttachment, canAccessAttachment, attachmentLimits,
+  listBlacklist, addBlacklist, removeBlacklist,
+  createScheduled, listScheduled, cancelScheduled, runDueScheduled
 } from '../services/mailSim.js';
 import { verifyPassword } from '../password.js';
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 // 确保已登录（loadUser 已在 index.js 全局挂载，这里只需检查）
 function requireLogin(req, res, next) {
@@ -230,6 +235,80 @@ router.post('/drafts', bindMailAccount, needMailAccount, (req, res) => {
     to, cc, subject, body, htmlBody: html_body, attachments
   });
   res.json({ ok: true, id });
+});
+
+// ==================== 附件上传/下载 ====================
+
+router.post('/attachments', requireLogin, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: '请选择文件' });
+  const lim = attachmentLimits();
+  const info = saveAttachment(req.file.buffer, req.file.originalname);
+  res.json({ ok: true, attachment: info, limits: lim });
+});
+
+router.get('/attachments/:stored', requireLogin, (req, res) => {
+  const stored = req.params.stored;
+  const abs = resolveAttachment(stored);
+  if (!abs) return res.status(404).json({ error: '附件不存在' });
+  if (req.user.role === 'student') {
+    const acct = db.prepare('SELECT * FROM mail_accounts WHERE student_id = ?').get(req.user.id);
+    if (!acct) return res.status(403).json({ error: '无权访问' });
+    const id = stored.split('__')[0];
+    if (!canAccessAttachment(acct.id, id)) {
+      return res.status(403).json({ error: '无权访问该附件' });
+    }
+  }
+  res.download(abs);
+});
+
+// ==================== 黑名单 ====================
+
+router.get('/blacklist', bindMailAccount, needMailAccount, (req, res) => {
+  res.json(listBlacklist(req.mailAccount.id));
+});
+
+router.post('/blacklist', bindMailAccount, needMailAccount, (req, res) => {
+  const { address } = req.body || {};
+  const r = addBlacklist(req.mailAccount.id, address);
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  res.json({ ok: true, changes: r.changes });
+});
+
+router.delete('/blacklist/:id', bindMailAccount, needMailAccount, (req, res) => {
+  const r = removeBlacklist(req.mailAccount.id, req.params.id);
+  res.json({ ok: true, changes: r.changes });
+});
+
+// ==================== 定时发送 ====================
+
+router.get('/scheduled', bindMailAccount, needMailAccount, (req, res) => {
+  res.json(listScheduled(req.mailAccount.id));
+});
+
+router.post('/scheduled', bindMailAccount, needMailAccount, (req, res) => {
+  const { to, cc, subject, body, html_body, attachments, send_at } = req.body || {};
+  const toArr = Array.isArray(to) ? to : (to ? [to] : []);
+  const ccArr = Array.isArray(cc) ? cc : (cc ? [cc] : []);
+  if (toArr.length === 0) return res.status(400).json({ error: '收件人不能为空' });
+  const sendAt = Number(send_at);
+  if (!sendAt || sendAt <= Date.now()) {
+    return res.status(400).json({ error: '发送时间必须晚于当前时间' });
+  }
+  const id = createScheduled(req.mailAccount.id, {
+    to: toArr, cc: ccArr, subject, body, htmlBody: html_body,
+    attachments: Array.isArray(attachments) ? attachments : [], sendAt
+  });
+  res.json({ ok: true, id });
+});
+
+router.delete('/scheduled/:id', bindMailAccount, needMailAccount, (req, res) => {
+  const r = cancelScheduled(req.mailAccount.id, req.params.id);
+  res.json({ ok: true, changes: r.changes });
+});
+
+// 手动触发一次到期检查（调试用）
+router.post('/scheduled/run-now', requireLogin, (req, res) => {
+  res.json({ ok: true, results: runDueScheduled() });
 });
 
 // ==================== 收件人搜索自动补全 ====================

@@ -96,6 +96,40 @@ body { margin: 0; font-family: "Microsoft YaHei","PingFang SC",sans-serif; backg
 .compose-modal .modal-footer .btn-send { background:#3d7fb5; color:#fff; border-color:#3d7fb5; }
 .compose-modal .modal-footer .btn-send:hover { background:#2c5f8a; }
 .compose-modal .modal-footer .btn-draft:hover { border-color:#3d7fb5; color:#3d7fb5; }
+.compose-modal .modal-footer .btn-sched { color:#e6882d; border-color:#f0c48a; background:#fff8ef; }
+.compose-modal .modal-footer .btn-sched:hover { background:#ffeacf; }
+
+/* 富文本编辑器 */
+.rt-toolbar { display:flex; flex-wrap:wrap; gap:2px; padding:6px; border:1px solid #ddd; border-bottom:none; border-radius:4px 4px 0 0; background:#fafbfd; }
+.rt-toolbar button { min-width:30px; height:28px; border:1px solid transparent; background:#fff; border-radius:3px; cursor:pointer; font-size:13px; padding:0 7px; color:#444; }
+.rt-toolbar button:hover { background:#eef4fb; border-color:#cfe0f0; }
+.rt-toolbar .sep { width:1px; background:#e0e0e0; margin:3px 4px; }
+.rt-editor { min-height:180px; max-height:340px; overflow:auto; padding:12px; border:1px solid #ddd; border-radius:0 0 4px 4px; font-size:14px; line-height:1.7; background:#fff; outline:none; }
+.rt-editor:focus { border-color:#3d7fb5; }
+.rt-editor:empty:before { content:'在这里输入邮件正文...'; color:#bbb; }
+
+/* 附件 */
+.attach-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12px; }
+.attach-btn { display:inline-block; padding:6px 12px; border:1px solid #ddd; border-radius:4px; cursor:pointer; color:#3d7fb5; background:#fff; }
+.attach-btn:hover { background:#eef4fb; }
+.attach-hint { color:#aaa; font-size:11px; }
+.attach-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.attach-chip { display:inline-flex; align-items:center; gap:6px; background:#eef4fb; border:1px solid #cfe0f0; border-radius:14px; padding:3px 10px; font-size:12px; color:#2c5f8a; }
+.attach-chip .rm { cursor:pointer; color:#e74c3c; font-weight:700; }
+
+/* 定时发送行 */
+.sched-row { display:flex; align-items:center; gap:8px; font-size:12px; color:#666; padding:4px 0; }
+.sched-row input { padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:12px; }
+
+/* 详情正文内 HTML 渲染 */
+.detail-body iframe { width:100%; border:none; min-height:200px; }
+.detail-attach-link { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; margin:0 8px 8px 0; background:#eef4fb; border:1px solid #cfe0f0; border-radius:4px; font-size:12px; color:#2c5f8a; text-decoration:none; }
+.detail-attach-link:hover { background:#dcebf9; }
+
+/* 账号工具按钮（侧栏） */
+.account-tools { margin-top:14px; display:flex; flex-direction:column; gap:4px; }
+.account-tools button { text-align:left; padding:8px 12px; border:none; background:#f7f9fc; border-radius:4px; cursor:pointer; font-size:12px; color:#555; }
+.account-tools button:hover { background:#eef4fb; color:#3d7fb5; }
 
 /* 教师管理面板 */
 .teacher-admin { display:none; }
@@ -176,6 +210,12 @@ body.is-teacher .sidebar-footer { display:none; }
       </div>
     </div>
 
+    <!-- 账号工具 -->
+    <div class="account-tools">
+      <button onclick="openSched()">⏰ 定时发送</button>
+      <button onclick="openBlacklist()">🚫 黑名单</button>
+    </div>
+
     <!-- 教师管理入口 -->
     <div class="teacher-admin">
       <div class="admin-title">🛠️ 教师管理</div>
@@ -230,10 +270,35 @@ body.is-teacher .sidebar-footer { display:none; }
       <div class="form-row"><label>收件人</label><input type="text" id="toInput" placeholder="张三@example.local" autocomplete="off"></div>
       <div class="form-row"><label>抄送</label><input type="text" id="ccInput" class="cc-row" placeholder="选填，多地址用逗号分隔" autocomplete="off"></div>
       <div class="form-row"><label>主题</label><input type="text" id="subjectInput" placeholder="请输入主题"></div>
-      <div class="form-row"><label>正文</label></div>
-      <textarea id="bodyInput" placeholder="在这里输入邮件正文..."></textarea>
+      <div class="rt-toolbar" id="rtToolbar">
+        <button type="button" data-cmd="bold" title="加粗"><b>B</b></button>
+        <button type="button" data-cmd="italic" title="斜体"><i>I</i></button>
+        <button type="button" data-cmd="underline" title="下划线"><u>U</u></button>
+        <button type="button" data-cmd="strikeThrough" title="删除线"><s>S</s></button>
+        <span class="sep"></span>
+        <button type="button" data-cmd="insertUnorderedList" title="无序列表">•≡</button>
+        <button type="button" data-cmd="insertOrderedList" title="有序列表">1.</button>
+        <span class="sep"></span>
+        <button type="button" data-cmd="foreColor" data-value="#e74c3c" title="红色文字" style="color:#e74c3c;">A</button>
+        <button type="button" data-cmd="foreColor" data-value="#2c5f8a" title="蓝色文字" style="color:#2c5f8a;">A</button>
+        <button type="button" data-cmd="hiliteColor" data-value="#fff3a0" title="高亮">🖍</button>
+        <span class="sep"></span>
+        <button type="button" data-cmd="createLink" title="插入链接">🔗</button>
+        <button type="button" data-cmd="removeFormat" title="清除格式">⌫</button>
+      </div>
+      <div class="rt-editor" id="bodyEditor" contenteditable="true"></div>
+      <div class="attach-bar">
+        <label class="attach-btn">📎 添加附件<input type="file" id="attachInput" multiple hidden></label>
+        <span class="attach-hint" id="attachHint">最多 5 个，单个 ≤ 10MB</span>
+        <div class="attach-chips" id="attachChips"></div>
+      </div>
+      <div class="sched-row" id="schedRow" style="display:none;">
+        <label>定时发送时间：</label><input type="datetime-local" id="schedTime">
+      </div>
     </div>
     <div class="modal-footer">
+      <button class="btn-sched" id="schedToggleBtn" onclick="toggleSched()">⏰ 定时发送</button>
+      <button class="btn-sched" id="schedConfirmBtn" style="display:none;" onclick="scheduleMail()">✅ 确认定时</button>
       <button class="btn-draft" onclick="saveDraft()">💾 存草稿</button>
       <button class="btn-send" onclick="sendMail()">📤 发送</button>
     </div>
@@ -253,6 +318,28 @@ body.is-teacher .sidebar-footer { display:none; }
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- 定时发送任务弹窗 -->
+<div class="admin-modal" id="schedModal">
+  <div class="panel" style="width:640px;">
+    <header>
+      <h3>⏰ 定时发送任务</h3>
+      <button class="close" onclick="closeSched()">×</button>
+    </header>
+    <div class="tab-content" id="schedContent"></div>
+  </div>
+</div>
+
+<!-- 黑名单弹窗 -->
+<div class="admin-modal" id="blacklistModal">
+  <div class="panel" style="width:560px;">
+    <header>
+      <h3>🚫 黑名单（拒收这些发件人）</h3>
+      <button class="close" onclick="closeBlacklist()">×</button>
+    </header>
+    <div class="tab-content" id="blacklistContent"></div>
+  </div>
+</div>
 
 <script src="/assets/js/common.js"></script>
 <script src="/assets/js/mail.js"></script>

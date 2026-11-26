@@ -12,6 +12,7 @@
     currentMailId: null,
     mailAccount: null,     // 当前绑定的邮箱账号（学生=自己，教师=选中的）
     smtp_log: [],
+    attachments: [],       // 待发送附件 [{id,name,size,stored}]
   };
 
   // ========== API 封装 ==========
@@ -52,6 +53,23 @@
   function truncate(s, n = 32) {
     s = s || '';
     return s.length > n ? s.slice(0, n) + '…' : s;
+  }
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function escapeAttr(s) {
+    return escapeHtml(s);
+  }
+  function fmtSize(bytes) {
+    if (!bytes && bytes !== 0) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  }
+  function accountQuery() {
+    return state.role === 'teacher' && state.mailAccount ? `account_id=${state.mailAccount.id}` : '';
   }
 
   // ========== 初始化 ==========
@@ -194,8 +212,15 @@
   function renderMailDetail(mail) {
     const el = document.getElementById('mailDetail');
     const atts = Array.isArray(mail.attachments) && mail.attachments.length > 0
-      ? `<div class="attachments"><h4>📎 附件（${mail.attachments.length}）</h4>${mail.attachments.map(a => `<div class="att-item">📄 ${a.name || '附件'}</div>`).join('')}</div>`
+      ? `<div class="attachments"><h4>📎 附件（${mail.attachments.length}）</h4>${mail.attachments.map(a =>
+          `<a class="detail-attach-link" href="/api/mail/attachments/${encodeURIComponent(a.stored || a.id)}" download>📄 ${(a.name || '附件')} <span style="color:#999;">(${fmtSize(a.size)})</span></a>`
+        ).join('')}</div>`
       : '';
+    const hasHtml = !!(mail.html_body && mail.html_body.trim());
+    const bodyHtml = hasHtml
+      ? `<div class="detail-body"><iframe sandbox srcdoc="${escapeAttr(mail.html_body)}"></iframe></div>`
+      : `<div class="detail-body" style="padding:18px 24px;white-space:pre-wrap;">${escapeHtml(mail.body || '(空正文)')}</div>`;
+    const isInbox = mail.folder === 'inbox';
     const smtpHtml = Array.isArray(mail.smtp_log) && mail.smtp_log.length > 0
       ? `<div class="proto-panel">
           <div class="proto-header">
@@ -204,7 +229,7 @@
           </div>
           <div class="proto-content">
             ${mail.smtp_log.map(l => {
-              const txt = l.text === null ? '<span class="null-data">(空行)</span>' : l.text.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>').replace(/\r/g,'');
+              const txt = l.text === null ? '<span class="null-data">(空行)</span>' : escapeHtml(l.text).replace(/\n/g,'<br>');
               return `<div class="line ${l.dir === 'C' ? 'client' : 'server'}"><span class="ts">[${new Date(l.ts).toLocaleTimeString('zh-CN')}]</span>${l.dir === 'C' ? '→ C:' : '← S:'} ${txt}</div>`;
             }).join('')}
           </div>
@@ -212,29 +237,37 @@
       : '';
     el.innerHTML = `
       <div class="detail-header">
-        <div class="subject">${mail.subject || '(无主题)'}</div>
+        <div class="subject">${escapeHtml(mail.subject || '(无主题)')}</div>
         <div class="meta">
-          <span class="sender">${mail.sender_name || mail.sender_address}</span>
+          <span class="sender">${escapeHtml(mail.sender_name || mail.sender_address)}</span>
           <span>—</span>
-          <span>${mail.sender_address}</span>
+          <span>${escapeHtml(mail.sender_address)}</span>
           <span style="margin-left:auto;color:#aaa;">${fmtTime(mail.created_at)}</span>
         </div>
         <div class="meta" style="color:#888;">
-          <span>收件人: ${mail.recipient_address}</span>
-          ${mail.cc_addresses && mail.cc_addresses !== '[]' ? `<span>抄送: ${mail.cc_addresses}</span>` : ''}
+          <span>收件人: ${escapeHtml(mail.recipient_address)}</span>
+          ${mail.cc_addresses && mail.cc_addresses !== '[]' ? `<span>抄送: ${escapeHtml(mail.cc_addresses)}</span>` : ''}
         </div>
       </div>
       <div class="detail-actions">
         <button onclick="replyMail()">↩️ 回复</button>
         <button onclick="forwardMail()">➡️ 转发</button>
         <button onclick="deleteCurrentMail()">🗑️ 删除</button>
-        <button onclick="junkMail()" id="junkBtn">⚠️ 标记垃圾</button>
+        <button onclick="junkMail()">⚠️ 标记垃圾</button>
+        ${isInbox ? `<button onclick="blacklistFromMail()" style="color:#e74c3c;">🚫 拉黑发件人</button>` : ''}
         <button onclick="printSmtpLog()">📋 复制 SMTP 日志</button>
       </div>
-      <div class="detail-body">${mail.body || '(空正文)'}</div>
+      ${bodyHtml}
       ${atts}
       ${smtpHtml}
     `;
+    // iframe 自动高度
+    const iframe = el.querySelector('.detail-body iframe');
+    if (iframe) {
+      iframe.onload = () => {
+        try { iframe.style.height = Math.min(iframe.contentDocument.body.scrollHeight + 20, 600) + 'px'; } catch {}
+      };
+    }
   }
 
   async function toggleStar(mailboxId) {
@@ -291,7 +324,8 @@
     openCompose();
     document.getElementById('toInput').value = cur.sender_address;
     document.getElementById('subjectInput').value = 'Re: ' + (cur.subject || '');
-    document.getElementById('bodyInput').value = '\n\n-----\n' + (cur.body || '');
+    document.getElementById('bodyEditor').innerHTML =
+      `<p><br></p><p style="color:#888;">----- 原邮件 -----</p><blockquote style="border-left:2px solid #ccc;padding-left:10px;color:#666;">${escapeHtml(cur.body || '')}</blockquote>`;
   }
 
   function forwardMail() {
@@ -299,7 +333,8 @@
     if (!cur) return;
     openCompose();
     document.getElementById('subjectInput').value = 'Fwd: ' + (cur.subject || '');
-    document.getElementById('bodyInput').value = '\n\n-----\n' + (cur.body || '');
+    document.getElementById('bodyEditor').innerHTML =
+      `<p><br></p><p style="color:#888;">----- 转发邮件 -----</p><blockquote style="border-left:2px solid #ccc;padding-left:10px;color:#666;">${escapeHtml(cur.body || '')}</blockquote>`;
   }
 
   function printSmtpLog() {
@@ -337,12 +372,90 @@
   function openCompose() {
     _composeMode = 'send';
     document.getElementById('composeTitle').textContent = '✉️ 写邮件';
-    ['toInput', 'ccInput', 'subjectInput', 'bodyInput'].forEach(id => document.getElementById(id).value = '');
+    ['toInput', 'ccInput', 'subjectInput'].forEach(id => document.getElementById(id).value = '');
+    const editor = document.getElementById('bodyEditor');
+    editor.innerHTML = '';
+    state.attachments = [];
+    renderAttachChips();
+    resetSchedRow();
     document.getElementById('composeModal').classList.add('show');
     setTimeout(() => document.getElementById('toInput').focus(), 100);
     setupRecipientAutocomplete();
+    setupRichText();
+    setupAttachInput();
   }
   function closeCompose() { document.getElementById('composeModal').classList.remove('show'); }
+
+  // 富文本工具栏
+  let _rtBound = false;
+  function setupRichText() {
+    if (_rtBound) return;
+    _rtBound = true;
+    const toolbar = document.getElementById('rtToolbar');
+    const editor = document.getElementById('bodyEditor');
+    toolbar.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
+    toolbar.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      editor.focus();
+      const cmd = btn.dataset.cmd;
+      const val = btn.dataset.value || null;
+      if (cmd === 'createLink') {
+        const url = prompt('请输入链接地址：', 'https://');
+        if (url) document.execCommand('createLink', false, url);
+      } else if (cmd === 'removeFormat') {
+        document.execCommand('removeFormat');
+      } else if (cmd === 'foreColor' || cmd === 'hiliteColor') {
+        document.execCommand(cmd, false, val || '#e74c3c');
+      } else {
+        document.execCommand(cmd, false, null);
+      }
+      editor.focus();
+    });
+  }
+
+  function getComposeBody() {
+    const editor = document.getElementById('bodyEditor');
+    const html = editor.innerHTML.trim();
+    const text = editor.innerText.trim();
+    // 完全空（只有 <br>）视为空
+    return { html: text ? html : '', text };
+  }
+
+  // 附件
+  let _attachBound = false;
+  function setupAttachInput() {
+    if (_attachBound) return;
+    _attachBound = true;
+    document.getElementById('attachInput').addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      e.target.value = '';
+      for (const f of files) {
+        if (state.attachments.length >= 5) { toast('最多 5 个附件', 'error'); break; }
+        if (f.size > 10 * 1024 * 1024) { toast(`「${f.name}」超过 10MB，已跳过`, 'error'); continue; }
+        try {
+          const fd = new FormData();
+          fd.append('file', f);
+          const res = await fetch('/api/mail/attachments', { method: 'POST', body: fd });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || '上传失败');
+          state.attachments.push(data.attachment);
+          renderAttachChips();
+        } catch (err) { toast(err.message, 'error'); }
+      }
+    });
+  }
+
+  function renderAttachChips() {
+    const box = document.getElementById('attachChips');
+    box.innerHTML = state.attachments.map((a, i) =>
+      `<span class="attach-chip">📄 ${escapeHtml(a.name)} <span style="color:#8aa;">${fmtSize(a.size)}</span><span class="rm" onclick="removeAttachment(${i})">×</span></span>`
+    ).join('');
+  }
+  function removeAttachment(i) {
+    state.attachments.splice(i, 1);
+    renderAttachChips();
+  }
 
   async function setupRecipientAutocomplete() {
     // 简单的自动补全：监听输入，下拉显示本地邮箱
@@ -388,57 +501,185 @@
     }, 50);
   }
 
-  async function sendMail() {
+  function collectCompose() {
     const to = document.getElementById('toInput').value.trim();
     const cc = document.getElementById('ccInput').value.trim();
     const subject = document.getElementById('subjectInput').value.trim();
-    const body = document.getElementById('bodyInput').value;
-    if (!to) { toast('请填写收件人', 'error'); return; }
-    if (!subject && !body) { toast('主题和正文不能都为空', 'error'); if (!subject) document.getElementById('subjectInput').focus(); return; }
+    const body = getComposeBody();
+    return {
+      toArr: to.split(/[,\s;]+/).filter(Boolean),
+      ccArr: cc ? cc.split(/[,\s;]+/).filter(Boolean) : [],
+      subject, bodyText: body.text, bodyHtml: body.html
+    };
+  }
+
+  async function sendMail() {
+    const c = collectCompose();
+    if (c.toArr.length === 0) { toast('请填写收件人', 'error'); return; }
+    if (!c.subject && !c.bodyText) { toast('主题和正文不能都为空', 'error'); return; }
 
     const payload = {
-      to: to.split(/[,\s;]+/).filter(Boolean),
-      cc: cc ? cc.split(/[,\s;]+/).filter(Boolean) : [],
-      subject, body
+      to: c.toArr, cc: c.ccArr,
+      subject: c.subject, body: c.bodyText, html_body: c.bodyHtml,
+      attachments: state.attachments
     };
-    const qs = state.role === 'teacher' && state.mailAccount ? `?account_id=${state.mailAccount.id}` : '';
+    const qs = accountQuery() ? `?${accountQuery()}` : '';
 
     try {
-      // 先演示一段 SMTP 命令在 toast 中
       toast('📤 正在发送（SMTP 握手中...）', 'success', 1500);
       const res = await api('POST', '/send' + qs, payload);
-      // 展示完整 SMTP 日志（在 toast 中显示摘要）
-      const sentCount = res.delivered_to;
       const rejected = res.rejected || [];
       closeCompose();
-      toast(`✅ 发送成功！送达 ${sentCount} 封${rejected.length ? `，${rejected.length} 封被拒绝` : ''}`, 'success', 3500);
+      toast(`✅ 发送成功！送达 ${res.delivered_to} 封${rejected.length ? `，${rejected.length} 封被拒绝` : ''}`, 'success', 3500);
       await refreshAll();
-      // 切换到发件箱
       await switchFolder('sent');
-      // 显示最后一封邮件的 SMTP 日志
       if (state.mails.length > 0) viewMail(state.mails[0].mailbox_id);
     } catch (e) {
       toast('❌ ' + e.message, 'error', 4000);
-      // 尝试从错误响应里取 smtp_log
-      try {
-        const lastError = document.querySelector('.proto-panel');
-        if (lastError) lastError.remove();
-      } catch {}
     }
   }
 
   async function saveDraft() {
-    const to = document.getElementById('toInput').value.trim();
-    const cc = document.getElementById('ccInput').value.trim();
-    const subject = document.getElementById('subjectInput').value.trim();
-    const body = document.getElementById('bodyInput').value;
-    const qs = state.role === 'teacher' && state.mailAccount ? `?account_id=${state.mailAccount.id}` : '';
+    const c = collectCompose();
+    const qs = accountQuery() ? `?${accountQuery()}` : '';
     try {
-      await api('POST', '/drafts' + qs, { to, cc, subject, body });
+      await api('POST', '/drafts' + qs, {
+        to: c.toArr, cc: c.ccArr, subject: c.subject,
+        body: c.bodyText, html_body: c.bodyHtml, attachments: state.attachments
+      });
       closeCompose();
       toast('💾 已保存到草稿箱', 'success');
       await refreshAll();
       await switchFolder('draft');
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  // ========== 定时发送 ==========
+  function resetSchedRow() {
+    document.getElementById('schedRow').style.display = 'none';
+    document.getElementById('schedConfirmBtn').style.display = 'none';
+    document.getElementById('schedToggleBtn').style.display = 'inline-block';
+    document.getElementById('schedTime').value = '';
+  }
+  function toggleSched() {
+    const row = document.getElementById('schedRow');
+    const show = row.style.display === 'none';
+    row.style.display = show ? 'flex' : 'none';
+    document.getElementById('schedConfirmBtn').style.display = show ? 'inline-block' : 'none';
+    document.getElementById('schedToggleBtn').style.display = show ? 'none' : 'inline-block';
+    if (show) {
+      // 默认 5 分钟后
+      const t = new Date(Date.now() + 5 * 60 * 1000);
+      t.setSeconds(0, 0);
+      const pad = n => String(n).padStart(2, '0');
+      document.getElementById('schedTime').value =
+        `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`;
+    }
+  }
+  async function scheduleMail() {
+    const c = collectCompose();
+    if (c.toArr.length === 0) { toast('请填写收件人', 'error'); return; }
+    if (!c.subject && !c.bodyText) { toast('主题和正文不能都为空', 'error'); return; }
+    const tval = document.getElementById('schedTime').value;
+    if (!tval) { toast('请选择发送时间', 'error'); return; }
+    const sendAt = new Date(tval).getTime();
+    if (!sendAt || sendAt <= Date.now()) { toast('发送时间必须晚于当前时间', 'error'); return; }
+    const qs = accountQuery() ? `?${accountQuery()}` : '';
+    try {
+      await api('POST', '/scheduled' + qs, {
+        to: c.toArr, cc: c.ccArr, subject: c.subject,
+        body: c.bodyText, html_body: c.bodyHtml,
+        attachments: state.attachments, send_at: sendAt
+      });
+      closeCompose();
+      toast(`⏰ 已设定于 ${new Date(sendAt).toLocaleString('zh-CN')} 发送`, 'success', 3500);
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  async function openSched() {
+    document.getElementById('schedModal').classList.add('show');
+    const content = document.getElementById('schedContent');
+    content.innerHTML = '<p style="color:#aaa;">加载中...</p>';
+    try {
+      const list = await api('GET', '/scheduled' + (accountQuery() ? `?${accountQuery()}` : ''));
+      if (list.length === 0) { content.innerHTML = '<p style="color:#aaa;padding:20px 0;">暂无定时发送任务</p>'; return; }
+      content.innerHTML = `<table>
+        <thead><tr><th>主题</th><th>收件人</th><th>计划发送</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>${list.map(t => `
+          <tr>
+            <td>${escapeHtml(truncate(t.subject || '(无主题)', 18))}</td>
+            <td>${escapeHtml(truncate((t.to_addresses || []).join(', '), 20))}</td>
+            <td>${new Date(t.send_at).toLocaleString('zh-CN')}</td>
+            <td>${schedStatusLabel(t.status)}${t.error ? `<div style="color:#e74c3c;font-size:11px;">${escapeHtml(t.error)}</div>` : ''}</td>
+            <td>${t.status === 'pending' ? `<button class="btn btn-sm" style="color:#e74c3c;" onclick="cancelScheduled(${t.id})">取消</button>` : '-'}</td>
+          </tr>`).join('')}</tbody></table>
+        <p style="color:#999;font-size:11px;margin-top:10px;">💡 任务在设定时间到达后由服务器自动发出，并出现在「已发送」中。</p>`;
+    } catch (e) { content.innerHTML = `<p style="color:#e74c3c;">${e.message}</p>`; }
+  }
+  function closeSched() { document.getElementById('schedModal').classList.remove('show'); }
+  function schedStatusLabel(s) {
+    const map = { pending: '<span style="color:#e6882d;">待发送</span>', sent: '<span style="color:#27ae60;">已发送</span>', cancelled: '<span style="color:#999;">已取消</span>', failed: '<span style="color:#e74c3c;">失败</span>' };
+    return map[s] || s;
+  }
+  async function cancelScheduled(id) {
+    if (!confirm('确定取消这个定时任务吗？')) return;
+    try {
+      await api('DELETE', `/scheduled/${id}` + (accountQuery() ? `?${accountQuery()}` : ''));
+      toast('已取消', 'success');
+      await openSched();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  // ========== 黑名单 ==========
+  async function openBlacklist() {
+    document.getElementById('blacklistModal').classList.add('show');
+    const content = document.getElementById('blacklistContent');
+    content.innerHTML = '<p style="color:#aaa;">加载中...</p>';
+    try {
+      const list = await api('GET', '/blacklist' + (accountQuery() ? `?${accountQuery()}` : ''));
+      content.innerHTML = `
+        <div class="row-form" style="align-items:flex-end;">
+          <div class="form-group"><label>要拒收的发件人邮箱</label>
+            <input id="blAddr" placeholder="例如 20250101@example.local" style="width:260px;">
+          </div>
+          <button class="btn btn-primary" onclick="addBlacklistAddress()">🚫 加入黑名单</button>
+        </div>
+        ${list.length === 0 ? '<p style="color:#aaa;padding:14px 0;">黑名单为空</p>' : `
+        <table><thead><tr><th>发件人</th><th>加入时间</th><th>操作</th></tr></thead>
+        <tbody>${list.map(b => `<tr>
+          <td><b>${escapeHtml(b.blocked_address)}</b></td>
+          <td style="color:#aaa;">${fmtTime(b.created_at)}</td>
+          <td><button class="btn btn-sm" style="color:#e74c3c;" onclick="removeBlacklistAddress(${b.id})">移除</button></td>
+        </tr>`).join('')}</tbody></table>`}
+        <p style="color:#999;font-size:11px;margin-top:10px;">💡 加入黑名单后，来自该地址的邮件会在 SMTP 的 RCPT TO 阶段被 550 拒收。</p>
+      `;
+    } catch (e) { content.innerHTML = `<p style="color:#e74c3c;">${e.message}</p>`; }
+  }
+  function closeBlacklist() { document.getElementById('blacklistModal').classList.remove('show'); }
+  async function addBlacklistAddress() {
+    const address = document.getElementById('blAddr').value.trim();
+    if (!address) { toast('请输入邮箱地址', 'error'); return; }
+    try {
+      await api('POST', '/blacklist' + (accountQuery() ? `?${accountQuery()}` : ''), { address });
+      toast('已加入黑名单', 'success');
+      await openBlacklist();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  async function removeBlacklistAddress(id) {
+    try {
+      await api('DELETE', `/blacklist/${id}` + (accountQuery() ? `?${accountQuery()}` : ''));
+      toast('已移除', 'success');
+      await openBlacklist();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  async function blacklistFromMail() {
+    const cur = state.mails.find(x => x.mailbox_id === state.currentMailId);
+    if (!cur) return;
+    const addr = cur.sender_address;
+    if (!confirm(`确定将 ${addr} 加入黑名单吗？此后来自该地址的邮件将被拒收。`)) return;
+    try {
+      await api('POST', '/blacklist' + (accountQuery() ? `?${accountQuery()}` : ''), { address: addr });
+      toast('已拉黑 ' + addr, 'success');
     } catch (e) { toast(e.message, 'error'); }
   }
 
@@ -605,6 +846,17 @@ ${res.log.map(l => `[${new Date(l.ts).toLocaleTimeString('zh-CN')}] ${l.dir === 
   window.replyMail = replyMail;
   window.forwardMail = forwardMail;
   window.printSmtpLog = printSmtpLog;
+  window.removeAttachment = removeAttachment;
+  window.toggleSched = toggleSched;
+  window.scheduleMail = scheduleMail;
+  window.openSched = openSched;
+  window.closeSched = closeSched;
+  window.cancelScheduled = cancelScheduled;
+  window.openBlacklist = openBlacklist;
+  window.closeBlacklist = closeBlacklist;
+  window.addBlacklistAddress = addBlacklistAddress;
+  window.removeBlacklistAddress = removeBlacklistAddress;
+  window.blacklistFromMail = blacklistFromMail;
   window.openAdmin = openAdmin;
   window.closeAdmin = closeAdmin;
   window.saveMailConfig = saveMailConfig;

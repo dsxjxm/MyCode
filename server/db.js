@@ -252,6 +252,32 @@ CREATE TABLE IF NOT EXISTS mail_mailboxes (
   UNIQUE(account_id, message_id, folder)
 );
 CREATE INDEX IF NOT EXISTS idx_mb_account ON mail_mailboxes(account_id, folder);
+
+-- 黑名单：收件人拒收指定发件人
+CREATE TABLE IF NOT EXISTS mail_blacklist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
+  blocked_address TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(account_id, blocked_address)
+);
+
+-- 定时发送任务
+CREATE TABLE IF NOT EXISTS mail_scheduled (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
+  to_addresses TEXT NOT NULL DEFAULT '',   -- JSON array
+  cc_addresses TEXT NOT NULL DEFAULT '',   -- JSON array
+  subject TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  html_body TEXT NOT NULL DEFAULT '',
+  attachments TEXT NOT NULL DEFAULT '',    -- JSON array
+  send_at INTEGER NOT NULL,                -- Unix ms
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending / sent / cancelled / failed
+  error TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sched_pending ON mail_scheduled(status, send_at);
 `);
 
 function now() {
