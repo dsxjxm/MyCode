@@ -5,9 +5,12 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const ROOT = path.resolve(here, '..');
+
+// 部署运行时文件系统只读，DATA_DIR 需指向可写的 TMPDIR
+const tmpdir = process.env.TMPDIR || process.env.TEMP || '/tmp';
 export const DATA_DIR = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
-  : path.join(ROOT, 'data');
+  : path.resolve(tmpdir, 'lan-sim-data');
 export const CLASSES_DIR = path.join(DATA_DIR, 'classes');
 export const TRASH_DIR = path.join(DATA_DIR, '_trash');
 export const PUBLIC_DIR = path.join(ROOT, 'public');
