@@ -253,6 +253,42 @@ router.post('/logout', requireLogin, (req, res) => {
   res.json({ ok: true });
 });
 
+// 教师邮箱别名注册 / 更换
+router.put('/teacher-alias', requireTeacher, (req, res) => {
+  const { alias, display_name, password } = req.body || {};
+  const a = String(alias || '').trim().toLowerCase();
+  if (!validAlias(a)) {
+    return res.status(400).json({ error: '别名需 3-18 位，字母/数字/._-，且以字母或数字开头' });
+  }
+  if (password && String(password).length < 6) {
+    return res.status(400).json({ error: '密码至少 6 位' });
+  }
+  const teacher = db.prepare(
+    "SELECT * FROM mail_accounts WHERE is_teacher=1 OR lower(username)='teacher' LIMIT 1"
+  ).get();
+  if (!teacher) return res.status(404).json({ error: '教师邮箱不存在，请重启服务重新初始化' });
+  const domain = mailDomain();
+  const full = `${a}@${domain}`;
+  const clash = db.prepare(
+    'SELECT id FROM mail_accounts WHERE lower(full_address)=? AND id<>?'
+  ).get(full, teacher.id);
+  if (clash) return res.status(409).json({ error: '该邮箱别名已被占用，请换一个' });
+  const name = String(display_name || '').trim().slice(0, 12) || teacher.display_name;
+  if (password) {
+    db.prepare(
+      `UPDATE mail_accounts SET username=?, domain=?, full_address=?, display_name=?,
+              password_hash=?, is_teacher=1, claimed=1 WHERE id=?`
+    ).run(a, domain, full, name, hashPassword(String(password)), teacher.id);
+  } else {
+    db.prepare(
+      `UPDATE mail_accounts SET username=?, domain=?, full_address=?, display_name=?,
+              is_teacher=1, claimed=1 WHERE id=?`
+    ).run(a, domain, full, name, teacher.id);
+  }
+  const fresh = db.prepare('SELECT * FROM mail_accounts WHERE id=?').get(teacher.id);
+  res.json({ ok: true, account: publicAccount(fresh) });
+});
+
 // ==================== 配置 ====================
 
 router.get('/config', requireLogin, (req, res) => {
@@ -348,7 +384,7 @@ router.get('/address-book', requireLogin, (req, res) => {
       `SELECT a.id, a.full_address, a.display_name,
               '' AS student_no, '教师' AS real_name, '教师' AS class_name
        FROM mail_accounts a
-       WHERE lower(a.username) = 'teacher'
+       WHERE a.is_teacher = 1 OR lower(a.username) = 'teacher'
        LIMIT 1`
     ).get();
     return res.json(teacher ? [teacher, ...rows] : rows);

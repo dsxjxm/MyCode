@@ -221,6 +221,7 @@ CREATE TABLE IF NOT EXISTS mail_accounts (
   student_id INTEGER REFERENCES students(id) ON DELETE SET NULL,
   phone TEXT NOT NULL DEFAULT '',    -- 模拟手机号（仅教学，不发真实短信）
   claimed INTEGER NOT NULL DEFAULT 0, -- 1=已注册（学生自行注册或教师创建）
+  is_teacher INTEGER NOT NULL DEFAULT 0, -- 1=教师邮箱
   created_at TEXT NOT NULL
 );
 
@@ -323,6 +324,9 @@ function now() {
   }
   if (!cols.includes('claimed')) {
     db.prepare('ALTER TABLE mail_accounts ADD COLUMN claimed INTEGER NOT NULL DEFAULT 0').run();
+  }
+  if (!cols.includes('is_teacher')) {
+    db.prepare('ALTER TABLE mail_accounts ADD COLUMN is_teacher INTEGER NOT NULL DEFAULT 0').run();
   }
 })();
 
@@ -431,14 +435,18 @@ if (db.prepare('SELECT COUNT(*) AS c FROM mail_server_config').get().c === 0) {
     created++;
   }
   if (created > 0) console.log(`[seed] 自动创建 ${created} 个邮箱账号`);
-  // 教师邮箱：teacher@example.local（初始密码 123456）
-  const tExist = db.prepare("SELECT id FROM mail_accounts WHERE lower(username)='teacher'").get();
+  // 教师邮箱：teacher@example.local（初始密码 123456，可自行更换别名）
+  const tExist = db.prepare(
+    "SELECT id, is_teacher FROM mail_accounts WHERE lower(username)='teacher' OR is_teacher=1 LIMIT 1"
+  ).get();
   if (!tExist) {
     db.prepare(
-      `INSERT INTO mail_accounts (username, domain, full_address, display_name, password_hash, student_id, phone, claimed, created_at)
-       VALUES (?, ?, ?, ?, ?, NULL, '', 1, ?)`
+      `INSERT INTO mail_accounts (username, domain, full_address, display_name, password_hash, student_id, phone, claimed, is_teacher, created_at)
+       VALUES (?, ?, ?, ?, ?, NULL, '', 1, 1, ?)`
     ).run('teacher', cfg.domain, `teacher@${cfg.domain}`, '系统管理员', hashPassword('123456'), now());
     console.log('[seed] 教师邮箱 teacher@' + cfg.domain + ' 已创建');
+  } else if (!tExist.is_teacher) {
+    db.prepare('UPDATE mail_accounts SET is_teacher=1, claimed=1 WHERE id=?').run(tExist.id);
   }
 })();
 

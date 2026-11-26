@@ -368,6 +368,7 @@ body.is-teacher #mailLogoutBtn { display:none; }
       <button class="toggle-admin-btn" onclick="openAdmin('config')">⚙️ 服务器配置</button>
       <button class="toggle-admin-btn" onclick="openAdmin('accounts')">👥 账号管理</button>
       <button class="toggle-admin-btn" onclick="openAdmin('pop3')">🔌 查看 POP3</button>
+      <button class="toggle-admin-btn" onclick="openAliasModal()">📧 邮箱别名注册</button>
     </div>
 
     <div class="sidebar-footer">
@@ -484,6 +485,43 @@ body.is-teacher #mailLogoutBtn { display:none; }
       <button class="close" onclick="closeBlacklist()">×</button>
     </header>
     <div class="tab-content" id="blacklistContent"></div>
+  </div>
+</div>
+
+<!-- 教师邮箱别名注册弹窗 -->
+<div class="admin-modal" id="aliasModal">
+  <div class="panel" style="width:520px;">
+    <header>
+      <h3>📧 教师邮箱别名注册</h3>
+      <button class="close" onclick="closeAliasModal()">×</button>
+    </header>
+    <div class="tab-content">
+      <div class="gate-notice" style="display:block;">教师邮箱与学生一样使用本地域名，可自定义别名，例如 wanglaoshi@example.local。</div>
+      <div class="gate-field">
+        <label>当前邮箱</label>
+        <div style="font-size:13px;color:#2c5f8a;font-weight:600;" id="aliasCurrent">—</div>
+      </div>
+      <div class="gate-field">
+        <label>新别名</label>
+        <div class="gate-input-row">
+          <input type="text" id="aliasInput" placeholder="3-18 位字母/数字/._-" maxlength="18">
+          <span class="suffix">@<span class="gate-domain">example.local</span></span>
+        </div>
+      </div>
+      <div class="gate-field">
+        <label>昵称（发件人显示名）</label>
+        <input type="text" id="aliasName" placeholder="如 王老师" maxlength="12">
+      </div>
+      <div class="gate-field">
+        <label>新密码（留空则不修改）</label>
+        <input type="password" id="aliasPwd" placeholder="至少 6 位，可留空" autocomplete="new-password">
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px;">
+        <button class="btn" type="button" onclick="closeAliasModal()">取消</button>
+        <button class="btn btn-primary" type="button" onclick="submitTeacherAlias()">保存别名</button>
+      </div>
+      <div class="gate-msg" id="aliasMsg"></div>
+    </div>
   </div>
 </div>
 

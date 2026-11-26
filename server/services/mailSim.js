@@ -32,10 +32,10 @@ export function findAccountByAddress(address) {
 export function listAllAccounts() {
   return db.prepare(
     `SELECT a.id, a.username, a.domain, a.full_address, a.display_name,
-            a.student_id, a.created_at,
+            a.student_id, a.claimed, a.is_teacher, a.created_at,
             s.name AS student_name, s.student_no
      FROM mail_accounts a LEFT JOIN students s ON a.student_id = s.id
-     ORDER BY a.id`
+     ORDER BY a.is_teacher DESC, a.id`
   ).all();
 }
 

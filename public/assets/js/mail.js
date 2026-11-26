@@ -155,7 +155,9 @@
     // 教师：优先使用教师邮箱 teacher@domain
     try {
       const accounts = await api('GET', '/accounts');
-      const teacherAcct = accounts.find(a => String(a.username).toLowerCase() === 'teacher');
+      const teacherAcct = accounts.find(a => a.is_teacher)
+        || accounts.find(a => String(a.username).toLowerCase() === 'teacher')
+        || accounts[0];
       state.mailAccount = teacherAcct || accounts[0] || null;
       state.ownAddress = state.mailAccount ? state.mailAccount.full_address : '';
       document.getElementById('myAddr').textContent =
@@ -1164,6 +1166,62 @@ ${res.log.map(l => `[${new Date(l.ts).toLocaleTimeString('zh-CN')}] ${l.dir === 
     showGate(hasAccount ? { hasAccount: true, claimed: true, address: addr } : null);
   }
 
+  // ========== 教师邮箱别名注册 ==========
+  async function openAliasModal() {
+    const domain = state.domain || 'example.local';
+    let teacherAcct = state.mailAccount && state.mailAccount.is_teacher ? state.mailAccount : null;
+    if (!teacherAcct) {
+      try {
+        const accounts = await api('GET', '/accounts');
+        teacherAcct = accounts.find(a => a.is_teacher)
+          || accounts.find(a => String(a.username).toLowerCase() === 'teacher')
+          || null;
+      } catch (e) {
+        toast(e.message, 'error');
+        return;
+      }
+    }
+    if (!teacherAcct) { toast('未找到教师邮箱', 'error'); return; }
+    document.querySelectorAll('#aliasModal .gate-domain').forEach((el) => { el.textContent = domain; });
+    document.getElementById('aliasCurrent').textContent = teacherAcct.full_address;
+    document.getElementById('aliasInput').value = String(teacherAcct.username || '').replace(`@${domain}`, '');
+    document.getElementById('aliasName').value = teacherAcct.display_name || '';
+    document.getElementById('aliasPwd').value = '';
+    document.getElementById('aliasMsg').textContent = '';
+    document.getElementById('aliasModal').classList.add('show');
+  }
+  function closeAliasModal() {
+    document.getElementById('aliasModal').classList.remove('show');
+  }
+  async function submitTeacherAlias() {
+    const msg = document.getElementById('aliasMsg');
+    msg.textContent = '';
+    const alias = document.getElementById('aliasInput').value.trim().toLowerCase();
+    const name = document.getElementById('aliasName').value.trim();
+    const pwd = document.getElementById('aliasPwd').value;
+    if (!/^[a-z0-9][a-z0-9._-]{2,17}$/.test(alias)) {
+      msg.textContent = '别名需 3-18 位，字母/数字/._-，且以字母或数字开头';
+      return;
+    }
+    if (pwd && pwd.length < 6) { msg.textContent = '密码至少 6 位'; return; }
+    try {
+      const r = await api('PUT', '/teacher-alias', { alias, display_name: name, password: pwd || undefined });
+      const acc = r.account;
+      const viewingOwn = state.mailAccount && state.mailAccount.is_teacher;
+      if (viewingOwn) {
+        state.mailAccount = { ...state.mailAccount, ...acc };
+        document.getElementById('myAddr').textContent = acc.full_address;
+      }
+      state.ownAddress = acc.full_address;
+      closeAliasModal();
+      toast('教师邮箱别名已更新：' + acc.full_address, 'success');
+      if (document.getElementById('bookModal').classList.contains('show')) openAddressBook();
+      loadMailIdentity();
+    } catch (e) {
+      msg.textContent = e.message;
+    }
+  }
+
   // ========== 导出到全局 ==========
   window.switchFolder = switchFolder;
   window.refresh = refresh;
@@ -1201,6 +1259,9 @@ ${res.log.map(l => `[${new Date(l.ts).toLocaleTimeString('zh-CN')}] ${l.dir === 
   window.drawCaptcha = drawCaptcha;
   window.fillSmsCode = fillSmsCode;
   window.mailLogout = mailLogout;
+  window.openAliasModal = openAliasModal;
+  window.closeAliasModal = closeAliasModal;
+  window.submitTeacherAlias = submitTeacherAlias;
   window.openAdmin = openAdmin;
   window.closeAdmin = closeAdmin;
   window.saveMailConfig = saveMailConfig;
