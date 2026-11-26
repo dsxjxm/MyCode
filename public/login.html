@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 · 局域网仿真实训教学平台</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body class="login-page">
+  <div class="login-card">
+    <section class="login-brand">
+      <div class="logo-badge">LAN</div>
+      <h1>局域网仿真实训教学平台</h1>
+      <p class="brand-sub">WWW · FTP · Telnet · DNS · DHCP</p>
+      <ul class="brand-list">
+        <li><b>WWW 教学</b>模拟 IIS 站点，分屏编辑、实时预览</li>
+        <li><b>FTP / Telnet</b>浏览器终端远程登录与文件传输实训</li>
+        <li><b>DNS / DHCP</b>服务器与 PC 组网配置模拟</li>
+      </ul>
+      <p class="brand-foot">教师初始账号：admin / admin123</p>
+    </section>
+    <section class="login-form">
+      <h2>账号登录</h2>
+      <p class="muted">教师与学生使用同一入口，系统自动识别身份</p>
+      <form id="loginForm" autocomplete="on">
+        <label class="field">
+          <span>账号</span>
+          <input class="input" id="username" autocomplete="username" required placeholder="学号 / 教师账号">
+        </label>
+        <label class="field">
+          <span>密码</span>
+          <input class="input" id="password" type="password" autocomplete="current-password" required placeholder="请输入密码">
+        </label>
+        <div class="login-error" id="loginError"></div>
+        <button class="btn btn-primary btn-block" type="submit" id="loginBtn">登 录</button>
+      </form>
+      <p class="muted small">学生初始密码由教师设置，默认 123456</p>
+    </section>
+  </div>
+  <script type="module" src="/assets/js/login.js"></script>
+</body>
+</html>
