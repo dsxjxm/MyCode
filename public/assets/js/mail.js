@@ -868,19 +868,24 @@ ${res.log.map(l => `[${new Date(l.ts).toLocaleTimeString('zh-CN')}] ${l.dir === 
       list.innerHTML = '<p style="color:#888;font-size:13px;">没有匹配的联系人</p>';
       return;
     }
+    const myAddr = String(state.mailAccount?.full_address || '').toLowerCase();
     list.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
       <thead><tr style="color:#8a94a3;text-align:left;">
         <th style="padding:6px;">姓名</th><th>学号</th><th>邮箱地址</th><th></th>
       </tr></thead>
-      <tbody>${rows.map((c) => `<tr style="border-top:1px solid #eef1f5;">
+      <tbody>${rows.map((c) => {
+        const isSelf = myAddr && String(c.full_address || '').toLowerCase() === myAddr;
+        const action = isSelf
+          ? '<span style="color:#9aa5b1;font-size:11px;">（我）</span>'
+          : `<button class="btn-sched" style="padding:4px 10px;" onclick="useContact('${escapeAttr(c.full_address || '')}')">写邮件</button>`;
+        return `<tr style="border-top:1px solid #eef1f5;">
         <td style="padding:7px 6px;">${escapeHtml(c.display_name || c.real_name || '')}
           <div style="color:#9aa5b1;font-size:11px;">${escapeHtml(c.class_name || '')}</div></td>
         <td style="padding:7px 6px;color:#666;">${escapeHtml(c.student_no || '')}</td>
         <td style="padding:7px 6px;color:#2c5f8a;">${escapeHtml(c.full_address || '')}</td>
-        <td style="padding:7px 6px;text-align:right;">
-          <button class="btn-sched" style="padding:4px 10px;" onclick="useContact('${escapeAttr(c.full_address || '')}')">写邮件</button>
-        </td>
-      </tr>`).join('')}</tbody></table>`;
+        <td style="padding:7px 6px;text-align:right;">${action}</td>
+      </tr>`;
+      }).join('')}</tbody></table>`;
   }
   function useContact(address) {
     closeAddressBook();
