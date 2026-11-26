@@ -54,7 +54,8 @@ const el = {
   fontUp: document.getElementById('fontUp'),
   fontDown: document.getElementById('fontDown'),
   setMime: document.getElementById('setMime'),
-  fileInput: document.getElementById('fileInput')
+  fileInput: document.getElementById('fileInput'),
+  noticeBar: document.getElementById('noticeBar')
 };
 
 let editor = null;
@@ -74,6 +75,7 @@ async function init() {
   initEditor();
   bindEvents();
   await loadSpace();
+  await loadNotices();
 }
 
 function initEditor() {
@@ -124,6 +126,10 @@ function bindEvents() {
   document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
   el.setSiteEnabled.addEventListener('change', () => {
     el.siteEnabledText.textContent = el.setSiteEnabled.checked ? '已启动' : '已停止';
+  });
+  el.noticeBar.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-dismiss]');
+    if (btn) dismissNotice(Number(btn.dataset.dismiss));
   });
   el.fontUp.addEventListener('click', () => changeFontSize(1));
   el.fontDown.addEventListener('click', () => changeFontSize(-1));
@@ -236,6 +242,48 @@ function onEditorChange() {
   tab.dirty = true;
   el.saveState.textContent = '未保存…';
   scheduleSave();
+}
+
+async function loadNotices() {
+  if (!el.noticeBar) return;
+  try {
+    const { notices } = await api('/api/notices');
+    let dismissed = [];
+    try {
+      dismissed = JSON.parse(localStorage.getItem('dismissedNotices') || '[]');
+    } catch {}
+    const visible = notices.filter((notice) => !dismissed.includes(notice.id)).slice(0, 3);
+    if (!visible.length) {
+      el.noticeBar.hidden = true;
+      el.noticeBar.innerHTML = '';
+      return;
+    }
+    el.noticeBar.innerHTML = visible
+      .map(
+        (notice) => `
+      <div class="notice-pill" data-id="${notice.id}">
+        <span class="notice-ico">📢</span>
+        <div class="notice-text"><b>${escapeHtml(notice.title)}</b><span>${escapeHtml(notice.content)}</span></div>
+        <button class="notice-close" type="button" data-dismiss="${notice.id}" title="不再显示">×</button>
+      </div>`
+      )
+      .join('');
+    el.noticeBar.hidden = false;
+  } catch {
+    el.noticeBar.hidden = true;
+  }
+}
+
+function dismissNotice(id) {
+  let dismissed = [];
+  try {
+    dismissed = JSON.parse(localStorage.getItem('dismissedNotices') || '[]');
+  } catch {}
+  if (!dismissed.includes(id)) dismissed.push(id);
+  localStorage.setItem('dismissedNotices', JSON.stringify(dismissed.slice(-100)));
+  const pill = el.noticeBar.querySelector(`.notice-pill[data-id="${id}"]`);
+  if (pill) pill.remove();
+  if (!el.noticeBar.children.length) el.noticeBar.hidden = true;
 }
 
 async function loadSpace() {

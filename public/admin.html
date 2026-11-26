@@ -22,13 +22,56 @@
 
   <div class="admin-layout">
     <aside class="side-nav">
-      <button class="nav-item active" data-view="classes" type="button"><span class="nav-ico">班</span>班级管理</button>
+      <button class="nav-item active" data-view="overview" type="button"><span class="nav-ico">览</span>概览</button>
+      <button class="nav-item" data-view="classes" type="button"><span class="nav-ico">班</span>班级管理</button>
       <button class="nav-item" data-view="students" type="button"><span class="nav-ico">生</span>学生账户</button>
       <button class="nav-item" data-view="help" type="button"><span class="nav-ico">?</span>使用说明</button>
     </aside>
 
     <main class="admin-main">
-      <section class="view active" id="view-classes">
+      <section class="view active" id="view-overview">
+        <div class="page-head">
+          <div>
+            <h2>概览</h2>
+            <p class="muted">平台运行概况与教学通知，通知会显示在学生工作台顶部。</p>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="refreshOverviewBtn" type="button">刷新数据</button>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-num" id="stClasses">0</div><div class="stat-lbl">班级数量</div></div>
+          <div class="stat-card"><div class="stat-num" id="stStudents">0</div><div class="stat-lbl">学生总数</div></div>
+          <div class="stat-card"><div class="stat-num" id="stSites">0</div><div class="stat-lbl">站点已启用</div></div>
+          <div class="stat-card"><div class="stat-num" id="stTodayNew">0</div><div class="stat-lbl">今日新增学生</div></div>
+          <div class="stat-card"><div class="stat-num" id="stDisabled">0</div><div class="stat-lbl">停用账号</div></div>
+          <div class="stat-card"><div class="stat-num" id="stNotices">0</div><div class="stat-lbl">已发布通知</div></div>
+        </div>
+        <div class="overview-grid">
+          <div class="panel notice-composer">
+            <h3>发布教学通知</h3>
+            <label class="field"><span>通知标题 *</span>
+              <input class="input" id="noticeTitle" placeholder="例如：本周 WWW 实训安排">
+            </label>
+            <label class="field"><span>通知内容 *</span>
+              <textarea class="input" id="noticeContent" rows="4" placeholder="通知内容将显示在学生工作台顶部"></textarea>
+            </label>
+            <label class="field"><span>发送范围</span>
+              <select class="input" id="noticeScope"></select>
+            </label>
+            <button class="btn btn-primary" id="sendNoticeBtn" type="button">发布通知</button>
+          </div>
+          <div class="panel notice-list-panel">
+            <div class="panel-head">
+              <h3>已发布通知</h3>
+              <span class="muted small">最新 30 条</span>
+            </div>
+            <div class="notice-list" id="noticeList">
+              <div class="empty">还没有发布通知</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-classes">
         <div class="page-head">
           <div>
             <h2>班级管理</h2>
@@ -95,6 +138,7 @@
             <li>在“班级管理”中创建班级。</li>
             <li>在“学生账户”中逐个添加，或点击“导入名单”批量导入；建议先下载导入模板。</li>
             <li>学生用学号（或自定义账号）和初始密码登录，进入 WWW 实训工作台。</li>
+            <li>在“概览”中查看平台统计，并向全体或指定班级发布教学通知，通知会显示在学生工作台顶部。</li>
           </ol>
           <h3>二、学生空间目录</h3>
           <p>每个学生自动生成独立目录，包含四个子目录：</p>

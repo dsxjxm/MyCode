@@ -46,6 +46,7 @@ async function init() {
   bindActions();
   await loadClasses();
   await loadStudents();
+  await loadOverview();
 }
 
 function bindNav() {
@@ -56,6 +57,7 @@ function bindNav() {
       document.querySelectorAll('.view').forEach((view) => view.classList.remove('active'));
       document.getElementById(`view-${btn.dataset.view}`).classList.add('active');
       if (btn.dataset.view === 'students') loadStudents();
+      if (btn.dataset.view === 'overview') loadOverview();
     });
   });
 }
@@ -81,6 +83,26 @@ function bindActions() {
   document.getElementById('importBtn').addEventListener('click', importDialog);
   document.getElementById('changePwdBtn').addEventListener('click', changePasswordDialog);
   el.batchDeleteBtn.addEventListener('click', batchDeleteStudents);
+  document.getElementById('refreshOverviewBtn').addEventListener('click', loadOverview);
+  document.getElementById('sendNoticeBtn').addEventListener('click', sendNotice);
+  document.getElementById('noticeList').addEventListener('click', async (event) => {
+    const btn = event.target.closest('[data-notice-del]');
+    if (!btn) return;
+    const ok = await confirmDialog({
+      title: '删除通知',
+      message: '确定删除这条通知吗？学生工作台将不再显示。',
+      okText: '删除',
+      danger: true
+    });
+    if (!ok) return;
+    try {
+      await api(`/api/notices/${btn.dataset.noticeDel}`, { method: 'DELETE' });
+      toast('通知已删除', 'success');
+      await loadOverview();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
 
   el.studentSearch.addEventListener('input', () => {
     state.search = el.studentSearch.value;
@@ -157,6 +179,89 @@ function renderClassFilter() {
   } else {
     state.classId = '';
     el.classFilter.value = '';
+  }
+  renderNoticeScope();
+}
+
+function renderNoticeScope() {
+  const select = document.getElementById('noticeScope');
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML =
+    '<option value="">全体学生</option>' +
+    state.classes
+      .map((cls) => `<option value="${cls.id}">${escapeHtml(cls.name)}</option>`)
+      .join('');
+  if (current && state.classes.some((cls) => String(cls.id) === String(current))) {
+    select.value = current;
+  }
+}
+
+async function loadOverview() {
+  try {
+    const { stats } = await api('/api/notices/stats');
+    document.getElementById('stClasses').textContent = stats.classes;
+    document.getElementById('stStudents').textContent = stats.students;
+    document.getElementById('stSites').textContent = stats.sites;
+    document.getElementById('stTodayNew').textContent = stats.today_new;
+    document.getElementById('stDisabled').textContent = stats.disabled;
+    document.getElementById('stNotices').textContent = stats.notices;
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+  await loadNotices();
+}
+
+async function loadNotices() {
+  try {
+    const { notices } = await api('/api/notices');
+    const list = document.getElementById('noticeList');
+    if (!notices.length) {
+      list.innerHTML = '<div class="empty">还没有发布通知</div>';
+      return;
+    }
+    list.innerHTML = notices
+      .map(
+        (notice) => `
+        <div class="notice-item">
+          <div class="notice-item-head">
+            <b>${escapeHtml(notice.title)}</b>
+            <span class="chip ${notice.class_id ? 'chip-off' : 'chip-ok'}">${notice.class_id ? escapeHtml(notice.class_name || '班级') : '全体学生'}</span>
+            <span class="muted small">${formatTime(notice.created_at)}</span>
+            <button class="btn btn-danger-ghost btn-sm" data-notice-del="${notice.id}" type="button">删除</button>
+          </div>
+          <p>${escapeHtml(notice.content)}</p>
+        </div>`
+      )
+      .join('');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function sendNotice() {
+  const title = document.getElementById('noticeTitle').value.trim();
+  const content = document.getElementById('noticeContent').value.trim();
+  const classId = document.getElementById('noticeScope').value;
+  if (!title || !content) {
+    toast('请填写通知标题和内容', 'error');
+    return;
+  }
+  const button = document.getElementById('sendNoticeBtn');
+  button.disabled = true;
+  try {
+    await api('/api/notices', {
+      method: 'POST',
+      body: { title, content, classId: classId || null }
+    });
+    document.getElementById('noticeTitle').value = '';
+    document.getElementById('noticeContent').value = '';
+    toast('通知已发布', 'success');
+    await loadOverview();
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    button.disabled = false;
   }
 }
 

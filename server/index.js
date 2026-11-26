@@ -10,6 +10,7 @@ import classRoutes from './routes/classes.js';
 import studentRoutes from './routes/students.js';
 import spaceRoutes from './routes/space.js';
 import previewRoutes from './routes/preview.js';
+import noticeRoutes from './routes/notices.js';
 
 ensureDirs();
 
@@ -26,6 +27,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/space', spaceRoutes);
+app.use('/api/notices', noticeRoutes);
 app.use('/preview', previewRoutes);
 
 function redirectByRole(res, role) {
