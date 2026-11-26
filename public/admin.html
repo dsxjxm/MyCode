@@ -5,6 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>教师控制台 · 局域网仿真实训教学平台</title>
   <link rel="stylesheet" href="/assets/css/app.css">
+  <style>
+    .modules-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .module-card { background: #fff; border: 1px solid #e6ebf2; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+    .module-card .m-head { display: flex; align-items: center; gap: 10px; }
+    .module-card .m-ico { font-size: 24px; }
+    .module-card h3 { margin: 0; font-size: 15px; }
+    .module-card p { margin: 0; color: #748096; font-size: 12.5px; line-height: 1.6; flex: 1; }
+    .module-card .m-tag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 10px; }
+    .m-tag.teacher { background: #e8f2fb; color: #2c5f8a; }
+    .m-tag.student { background: #fdf2e3; color: #b9761f; }
+    .module-card .m-actions { display: flex; gap: 8px; }
+  </style>
 </head>
 <body class="app-body">
   <header class="topbar">
@@ -25,6 +37,7 @@
       <button class="nav-item active" data-view="overview" type="button"><span class="nav-ico">览</span>概览</button>
       <button class="nav-item" data-view="classes" type="button"><span class="nav-ico">班</span>班级管理</button>
       <button class="nav-item" data-view="students" type="button"><span class="nav-ico">生</span>学生账户</button>
+      <button class="nav-item" data-view="modules" type="button"><span class="nav-ico">块</span>模块管理</button>
       <button class="nav-item" data-view="help" type="button"><span class="nav-ico">?</span>使用说明</button>
     </aside>
 
@@ -128,6 +141,49 @@
         </div>
       </section>
 
+      <section class="view" id="view-modules">
+        <div class="page-head">
+          <div>
+            <h2>模块管理</h2>
+            <p class="muted">各实训模块的教师管理入口。网络与邮件模块可在管理页中直接配置服务器参数。</p>
+          </div>
+        </div>
+        <div class="modules-grid">
+          <div class="module-card">
+            <div class="m-head"><span class="m-ico">🌐</span><h3>WWW / IIS 站点</h3></div>
+            <p>学生站点编辑与预览、默认文档与 MIME 配置。教师可在「学生账户」中启停学生站点权限。</p>
+            <span class="m-tag student">学生端实训</span>
+            <div class="m-actions">
+              <button class="btn btn-ghost btn-sm" type="button" onclick="document.querySelector('[data-view=students]').click()">学生账户</button>
+            </div>
+          </div>
+          <div class="module-card">
+            <div class="m-head"><span class="m-ico">⌨️</span><h3>FTP / Telnet 终端</h3></div>
+            <p>基于学生个人空间的 FTP / Telnet 命令模拟实训，包含上传下载、目录操作与登录认证。</p>
+            <span class="m-tag student">学生端实训</span>
+            <div class="m-actions">
+              <button class="btn btn-ghost btn-sm" type="button" onclick="document.querySelector('[data-view=help]').click()">使用说明</button>
+            </div>
+          </div>
+          <div class="module-card">
+            <div class="m-head"><span class="m-ico">🖧</span><h3>网络模拟 · DNS / DHCP</h3></div>
+            <p>配置 DHCP 地址池、网关与 DNS 解析记录，管理 PC 拓扑，并运行 ipconfig / ping / nslookup 等命令。</p>
+            <span class="m-tag teacher">教师可管理</span>
+            <div class="m-actions">
+              <a class="btn btn-primary btn-sm" href="/network.html" target="_blank" rel="noopener">打开管理</a>
+            </div>
+          </div>
+          <div class="module-card">
+            <div class="m-head"><span class="m-ico">✉️</span><h3>邮件服务器 · SMTP / POP3</h3></div>
+            <p>管理邮箱账号、服务器参数、黑名单与定时发送任务，查看 SMTP / POP3 协议会话。</p>
+            <span class="m-tag teacher">教师可管理</span>
+            <div class="m-actions">
+              <a class="btn btn-primary btn-sm" href="/mail.html" target="_blank" rel="noopener">打开管理</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="view" id="view-help">
         <div class="page-head">
           <div><h2>使用说明</h2><p class="muted">本学期首期功能：账户体系 + WWW（IIS 模拟）实训。</p></div>
@@ -154,8 +210,8 @@
           <p>删除学生或班级时，对应文件目录不会真正删除，而是移入数据目录下的 <code>_trash/</code> 回收站，可按时间找回。预览页面运行在浏览器沙箱中，学生代码无法读取平台登录信息。教师可在页面右上角修改自己的登录密码。</p>
           <h3>五、学生工作台</h3>
           <p>文件树支持新建、上传、重命名、下载与删除；站点设置中可调整默认文档顺序、MIME 类型，并查看最近访问日志；编辑器底部可调整字号，拖动中间分隔条可调整分栏宽度，双击恢复。</p>
-          <h3>六、后续模块</h3>
-          <p>FTP / Telnet 终端实训、DNS / DHCP 组网模拟将在后续阶段接入，本页面会随功能更新。</p>
+          <h3>六、已上线的实训模块</h3>
+          <p>平台目前包含四个模块：WWW（IIS 站点模拟）、FTP / Telnet 终端、DNS / DHCP 网络模拟、邮件服务器（SMTP / POP3）。教师可在左侧「模块管理」进入各模块；其中网络模拟与邮件服务器提供教师管理界面，可配置 DHCP、DNS、邮箱账号、黑名单与定时发送等。</p>
         </div>
       </section>
     </main>
