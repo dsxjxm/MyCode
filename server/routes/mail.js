@@ -343,7 +343,15 @@ router.get('/address-book', requireLogin, (req, res) => {
     const me = db.prepare('SELECT class_id FROM students WHERE id = ?').get(req.user.id);
     if (!me || !me.class_id) return res.json([]);
     const rows = db.prepare(`${baseSql} WHERE s.class_id = ? ORDER BY s.student_no`).all(me.class_id);
-    return res.json(rows);
+    // 通讯簿首位固定为教师邮箱，便于师生互动
+    const teacher = db.prepare(
+      `SELECT a.id, a.full_address, a.display_name,
+              '' AS student_no, '教师' AS real_name, '教师' AS class_name
+       FROM mail_accounts a
+       WHERE lower(a.username) = 'teacher'
+       LIMIT 1`
+    ).get();
+    return res.json(teacher ? [teacher, ...rows] : rows);
   }
   const rows = db.prepare(`${baseSql} ORDER BY c.name, s.student_no`).all();
   res.json(rows);
