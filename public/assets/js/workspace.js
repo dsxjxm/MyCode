@@ -9,9 +9,9 @@ import {
   toast
 } from './common.js';
 
-window.ace.config.set('basePath', '/vendor/ace');
-window.ace.config.set('modePath', '/vendor/ace');
-window.ace.config.set('themePath', '/vendor/ace');
+window.ace.config.set('basePath', '/assets/ace');
+window.ace.config.set('modePath', '/assets/ace');
+window.ace.config.set('themePath', '/assets/ace');
 
 const state = {
   me: null,
