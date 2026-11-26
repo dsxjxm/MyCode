@@ -13,6 +13,9 @@ body { margin: 0; font-family: "Microsoft YaHei","PingFang SC",sans-serif; backg
 .topbar .logo { font-weight:700; font-size:16px; }
 .topbar nav a { color:#e5eef7; text-decoration:none; margin:0 8px; padding:4px 10px; border-radius:4px; font-size:13px; }
 .topbar nav a:hover, .topbar nav a.active { background:rgba(255,255,255,.2); color:#fff; }
+/* 教师管理入口仅教师可见 */
+.topbar nav a.teacher-only { display:none; }
+body.is-teacher .topbar nav a.teacher-only { display:inline-block; }
 .topbar .spacer { flex:1; }
 .topbar .user-info { font-size:13px; opacity:.9; margin-right:8px; }
 .topbar .role-tag { background:rgba(255,255,255,.2); padding:2px 8px; border-radius:10px; font-size:11px; margin-right:6px; }
@@ -180,7 +183,7 @@ body.is-teacher .sidebar-footer { display:none; }
     <a href="/terminal.html">FTP / Telnet</a>
     <a href="/network.html">DNS / DHCP</a>
     <a href="/mail.html" class="active">邮件服务器</a>
-    <a href="/admin.html">教师管理</a>
+    <a href="/admin.html" class="teacher-only">教师管理</a>
   </nav>
   <span class="spacer"></span>
   <span class="role-tag" id="roleTag">—</span>
