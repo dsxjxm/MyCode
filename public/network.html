@@ -105,17 +105,20 @@
 </head>
 <body>
   <!-- 顶部栏 -->
-  <header class="topbar">
-    <div class="brand">🌐 局域网仿真实训教学平台</div>
+  <header class="topbar topbar-compact">
+    <div class="brand">
+      <span class="logo-badge small">LAN</span>
+      <span class="brand-name">局域网仿真实训教学平台</span>
+    </div>
     <nav class="mode-tab">
-      <a href="/workspace.html">站点编辑器</a>
-      <a href="/terminal.html">终端</a>
-      <a href="/network.html" class="active">网络模拟</a>
+      <a href="/workspace.html">WWW 实训</a>
+      <a href="/terminal.html">FTP / Telnet</a>
+      <a href="/network.html" class="active">DNS / DHCP</a>
       <a href="/mail.html">邮件服务器</a>
     </nav>
-    <div class="user-info">
-      <span id="userName">...</span>
-      <a href="#" id="logoutBtn" class="logout">退出</a>
+    <div class="topbar-right">
+      <span class="user-chip" id="userChip"></span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">退出</button>
     </div>
   </header>
 

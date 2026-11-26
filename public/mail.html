@@ -6,21 +6,13 @@
 <link rel="stylesheet" href="/assets/css/app.css">
 <style>
 * { box-sizing: border-box; }
-body { margin: 0; font-family: "Microsoft YaHei","PingFang SC",sans-serif; background:#f5f6fa; color:#333; }
+body { margin: 0; font-family: "Microsoft YaHei","PingFang SC",sans-serif; background:#f5f6fa; color:#333; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
 
-/* 顶栏 */
-.topbar { height: 48px; background: linear-gradient(90deg,#2c5f8a,#3d7fb5); color:#fff; display:flex; align-items:center; padding:0 20px; gap:12px; box-shadow:0 1px 3px rgba(0,0,0,.15); position:fixed; top:0; left:0; right:0; z-index:100; }
-.topbar .logo { font-weight:700; font-size:16px; }
-.topbar nav a { color:#e5eef7; text-decoration:none; margin:0 8px; padding:4px 10px; border-radius:4px; font-size:13px; }
-.topbar nav a:hover, .topbar nav a.active { background:rgba(255,255,255,.2); color:#fff; }
 /* 教师管理入口仅教师可见 */
-.topbar nav a.teacher-only { display:none; }
-body.is-teacher .topbar nav a.teacher-only { display:inline-block; }
-.topbar .spacer { flex:1; }
-.topbar .user-info { font-size:13px; opacity:.9; margin-right:8px; }
-.topbar .role-tag { background:rgba(255,255,255,.2); padding:2px 8px; border-radius:10px; font-size:11px; margin-right:6px; }
+.mode-tab a.teacher-only { display:none; }
+body.is-teacher .mode-tab a.teacher-only { display:inline-block; }
 
-.layout { display:flex; height: calc(100vh - 48px); margin-top:48px; }
+.layout { flex: 1; min-height: 0; display:flex; }
 
 /* 左侧文件夹栏 */
 .sidebar { width: 220px; background:#fff; border-right:1px solid #e0e4ea; display:flex; flex-direction:column; padding:16px 10px; }
@@ -176,20 +168,23 @@ body.is-teacher .sidebar-footer { display:none; }
 </head>
 <body>
 
-<div class="topbar">
-  <span class="logo">🎓 局域网仿真平台</span>
-  <nav>
+<header class="topbar topbar-compact">
+  <div class="brand">
+    <span class="logo-badge small">LAN</span>
+    <span class="brand-name">局域网仿真实训教学平台</span>
+  </div>
+  <nav class="mode-tab">
     <a href="/workspace.html">WWW 实训</a>
     <a href="/terminal.html">FTP / Telnet</a>
     <a href="/network.html">DNS / DHCP</a>
     <a href="/mail.html" class="active">邮件服务器</a>
     <a href="/admin.html" class="teacher-only">教师管理</a>
   </nav>
-  <span class="spacer"></span>
-  <span class="role-tag" id="roleTag">—</span>
-  <span class="user-info" id="userInfo">—</span>
-  <a href="/api/auth/logout" style="color:#e5eef7;text-decoration:none;font-size:13px;">退出</a>
-</div>
+  <div class="topbar-right">
+    <span class="user-chip" id="userChip"></span>
+    <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">退出</button>
+  </div>
+</header>
 
 <div class="layout">
   <!-- 左侧文件夹栏 -->

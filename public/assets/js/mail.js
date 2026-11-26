@@ -81,9 +81,18 @@
       state.role = u.user.role;
 
       // UI 填充
-      document.getElementById('roleTag').textContent = state.role === 'teacher' ? '👨‍🏫 教师' : '👨‍🎓 学生';
-      document.getElementById('userInfo').textContent = `${state.user.name}（${state.user.username}）`;
+      const me = state.user;
+      const cls = me.className || me.class_name || '';
+      document.getElementById('userChip').textContent =
+        `${cls ? cls + ' · ' : ''}${me.name}（${me.username}）`;
       if (state.role === 'teacher') document.body.classList.add('is-teacher');
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+          await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+          window.location.href = '/login.html';
+        });
+      }
 
       // 加载邮箱配置 + 确定 mailAccount
       await loadMailIdentity();

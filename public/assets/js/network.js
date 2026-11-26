@@ -24,11 +24,15 @@ async function api(method, path, body) {
 async function initAuth() {
   const r = await fetch('/api/auth/me');
   if (!r.ok) { location.href = '/login.html'; return; }
-  state.me = await r.json();
-  document.getElementById('userName').textContent =
-    `${state.me.name}（${state.me.role === 'teacher' ? '教师' : '学生'}）`;
+  const data = await r.json();
+  state.me = data.user || null;
+  if (!state.me) { location.href = '/login.html'; return; }
+  const u = state.me;
+  const cls = u.className || u.class_name || '';
+  document.getElementById('userChip').textContent =
+    `${cls ? cls + ' · ' : ''}${u.name}（${u.username}）`;
 
-  if (state.me.role === 'student') {
+  if (u.role === 'student') {
     document.body.classList.add('net-student-view');
   }
 
