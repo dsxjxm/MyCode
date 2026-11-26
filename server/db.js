@@ -150,6 +150,108 @@ CREATE TABLE IF NOT EXISTS notices (
   content TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+
+-- ===== Module 3: DNS / DHCP =====
+CREATE TABLE IF NOT EXISTS dhcp_config (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  server_ip TEXT NOT NULL,
+  subnet_mask TEXT NOT NULL,
+  gateway TEXT NOT NULL,
+  dns_servers TEXT NOT NULL DEFAULT '',
+  pool_start TEXT NOT NULL,
+  pool_end TEXT NOT NULL,
+  lease_seconds INTEGER NOT NULL DEFAULT 86400,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS dns_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL,          -- A / CNAME / NS / MX
+  name TEXT NOT NULL,
+  value TEXT NOT NULL,
+  ttl INTEGER NOT NULL DEFAULT 300,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dns_name ON dns_records(name);
+
+CREATE TABLE IF NOT EXISTS network_pcs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  student_id INTEGER REFERENCES students(id) ON DELETE SET NULL,
+  mac_address TEXT NOT NULL,
+  dhcp_enabled INTEGER NOT NULL DEFAULT 1,
+  static_ip TEXT,              -- 静态 IP（dhcp_enabled=0 时生效）
+  current_ip TEXT,             -- 当前 IP（DHCP 分配或静态）
+  subnet_mask TEXT,
+  gateway TEXT,
+  dns_servers TEXT,
+  lease_expires_at INTEGER,    -- Unix ms
+  pos_x INTEGER DEFAULT 100,   -- SVG 画布坐标
+  pos_y INTEGER DEFAULT 100,
+  status TEXT NOT NULL DEFAULT 'offline', -- online / offline
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pc_arp_cache (
+  pc_id INTEGER NOT NULL REFERENCES network_pcs(id) ON DELETE CASCADE,
+  remote_ip TEXT NOT NULL,
+  remote_mac TEXT NOT NULL,
+  resolved_at INTEGER NOT NULL,
+  PRIMARY KEY (pc_id, remote_ip)
+);
+
+-- ===== Module 4: Mail Server (SMTP / POP3) =====
+CREATE TABLE IF NOT EXISTS mail_server_config (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  domain TEXT NOT NULL DEFAULT 'example.local',
+  smtp_port INTEGER NOT NULL DEFAULT 25,
+  pop3_port INTEGER NOT NULL DEFAULT 110,
+  max_size_kb INTEGER NOT NULL DEFAULT 10240,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS mail_accounts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL,           -- 邮箱前缀（如 zhangsan）
+  domain TEXT NOT NULL,              -- 域名（如 example.local）
+  full_address TEXT NOT NULL UNIQUE, -- zhangsan@example.local
+  display_name TEXT NOT NULL DEFAULT '',
+  password_hash TEXT NOT NULL,
+  student_id INTEGER REFERENCES students(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS mail_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sender_address TEXT NOT NULL,
+  sender_name TEXT NOT NULL DEFAULT '',
+  recipient_address TEXT NOT NULL,
+  recipient_name TEXT NOT NULL DEFAULT '',
+  cc_addresses TEXT NOT NULL DEFAULT '',  -- JSON array string
+  subject TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  html_body TEXT NOT NULL DEFAULT '',
+  attachments TEXT NOT NULL DEFAULT '',   -- JSON array [{name, size, path}]
+  size_bytes INTEGER NOT NULL DEFAULT 0,
+  smtp_log TEXT NOT NULL DEFAULT '',      -- SMTP 交互日志（JSON array）
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mail_sender ON mail_messages(sender_address);
+CREATE INDEX IF NOT EXISTS idx_mail_recipient ON mail_messages(recipient_address);
+
+CREATE TABLE IF NOT EXISTS mail_mailboxes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
+  message_id INTEGER NOT NULL REFERENCES mail_messages(id) ON DELETE CASCADE,
+  folder TEXT NOT NULL,               -- inbox / sent / draft / junk / trash
+  is_read INTEGER NOT NULL DEFAULT 0,
+  is_starred INTEGER NOT NULL DEFAULT 0,
+  deleted_at INTEGER,                 -- Unix ms（垃圾桶）
+  created_at TEXT NOT NULL,
+  UNIQUE(account_id, message_id, folder)
+);
+CREATE INDEX IF NOT EXISTS idx_mb_account ON mail_mailboxes(account_id, folder);
 `);
 
 function now() {
@@ -193,5 +295,74 @@ if (db.prepare('SELECT COUNT(*) AS c FROM students').get().c === 0) {
   }
   console.log('[seed] 演示班级 + 3 名学生已创建');
 }
+
+// 幂等 seed：DHCP + DNS 记录 + 3 台 PC
+if (db.prepare('SELECT COUNT(*) AS c FROM dhcp_config').get().c === 0) {
+  db.prepare(
+    `INSERT INTO dhcp_config (server_ip, subnet_mask, gateway, dns_servers, pool_start, pool_end, lease_seconds, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run('192.168.1.1', '255.255.255.0', '192.168.1.1', '192.168.1.1', '192.168.1.100', '192.168.1.200', 86400, now());
+  console.log('[seed] DHCP 配置已创建');
+}
+if (db.prepare('SELECT COUNT(*) AS c FROM dns_records').get().c === 0) {
+  const rows = [
+    ['A', 'www', '192.168.1.100', 300],
+    ['A', 'ftp', '192.168.1.101', 300],
+    ['A', 'mail', '192.168.1.102', 300],
+    ['A', 'dns', '192.168.1.1', 300],
+    ['NS', 'example.local', 'dns.example.local', 3600],
+    ['MX', 'example.local', 'mail.example.local', 3600],
+  ];
+  const stmt = db.prepare('INSERT INTO dns_records (type, name, value, ttl, created_at) VALUES (?, ?, ?, ?, ?)');
+  for (const r of rows) stmt.run(...r, now());
+  console.log('[seed] DNS 记录已创建');
+}
+if (db.prepare('SELECT COUNT(*) AS c FROM network_pcs').get().c === 0) {
+  const pcs = [
+    { name: 'PC-张三', mac: '00:1A:2B:3C:4D:01', sx: 180, sy: 220 },
+    { name: 'PC-李四', mac: '00:1A:2B:3C:4D:02', sx: 380, sy: 220 },
+    { name: 'PC-王五', mac: '00:1A:2B:3C:4D:03', sx: 580, sy: 220 },
+  ];
+  // 查学生（关联 student_id，可选）
+  const students = db.prepare('SELECT id FROM students ORDER BY id').all();
+  const stmt = db.prepare(
+    `INSERT INTO network_pcs (name, student_id, mac_address, pos_x, pos_y, status, created_at)
+     VALUES (?, ?, ?, ?, ?, 'offline', ?)`
+  );
+  for (let i = 0; i < pcs.length; i++) {
+    const sid = students[i]?.id ?? null;
+    stmt.run(pcs[i].name, sid, pcs[i].mac, pcs[i].sx, pcs[i].sy, now());
+  }
+  console.log('[seed] 3 台 PC 已创建');
+}
+
+// 幂等 seed：邮件服务器配置 + 自动为学生生成邮箱账号
+if (db.prepare('SELECT COUNT(*) AS c FROM mail_server_config').get().c === 0) {
+  db.prepare(
+    `INSERT INTO mail_server_config (domain, smtp_port, pop3_port, max_size_kb, enabled, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run('example.local', 25, 110, 10240, 1, now());
+  console.log('[seed] 邮件服务器配置已创建');
+}
+// 为每个没邮箱的学生自动创建账号
+(function autoCreateMailAccounts() {
+  const cfg = db.prepare('SELECT domain FROM mail_server_config LIMIT 1').get();
+  if (!cfg) return;
+  const existing = new Set(db.prepare('SELECT username FROM mail_accounts').all().map(a => a.username));
+  const students = db.prepare('SELECT id, student_no, name FROM students').all();
+  let created = 0;
+  for (const s of students) {
+    // 用 student_no 做邮箱前缀（数字学号更稳定，避免中文转拼音）
+    const prefix = s.student_no;
+    if (existing.has(prefix)) continue;
+    const full = `${prefix}@${cfg.domain}`;
+    db.prepare(
+      `INSERT INTO mail_accounts (username, domain, full_address, display_name, password_hash, student_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(prefix, cfg.domain, full, s.name, hashPassword('123456'), s.id, now());
+    created++;
+  }
+  if (created > 0) console.log(`[seed] 自动创建 ${created} 个邮箱账号`);
+})();
 
 export { now };
