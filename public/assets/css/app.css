@@ -788,3 +788,9 @@ textarea.input { resize: vertical; line-height: 1.6; }
 @media (max-width: 720px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* 顶部模块切换导航 */
+.topbar .mode-tab { display: flex; gap: 4px; margin-left: 16px; }
+.topbar .mode-tab a { padding: 5px 12px; border-radius: 6px; font-size: 13px; color: #cbd5e1; text-decoration: none; }
+.topbar .mode-tab a.active { background: rgba(255,255,255,0.15); color: #fff; }
+.topbar .mode-tab a:hover { background: rgba(255,255,255,0.1); }

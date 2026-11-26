@@ -287,4 +287,48 @@ router.get('/:id/preview-token', (req, res) => {
   res.json({ url: `/preview/${token}/` });
 });
 
+// 教师查看学生 FTP 空间（只读：列表 / 预览 / 下载 / 打包），路径穿越防护复用 resolveInside
+function ftpBaseOf(row) {
+  return path.join(studentSpaceAbs(row.class_folder, row.folder), 'ftp');
+}
+
+router.get('/:id/ftp/files', (req, res) => {
+  const row = getStudent(Number(req.params.id));
+  if (!row) return res.status(404).json({ error: '学生不存在' });
+  res.json({ files: listTree(ftpBaseOf(row)), spacePath: row.folder });
+});
+
+router.get('/:id/ftp/file', (req, res) => {
+  const row = getStudent(Number(req.params.id));
+  if (!row) return res.status(404).json({ error: '学生不存在' });
+  const base = ftpBaseOf(row);
+  const abs = resolveInside(base, req.query.path || '');
+  if (!abs || !fs.existsSync(abs) || fs.statSync(abs).isDirectory()) {
+    return res.status(404).json({ error: '文件不存在' });
+  }
+  if (req.query.download === '1') {
+    res.setHeader('Content-Disposition', contentDisposition(path.basename(abs)));
+    return res.sendFile(abs);
+  }
+  try {
+    res.json({ path: req.query.path, content: readTextFile(abs) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/:id/ftp/download-zip', (req, res) => {
+  const row = getStudent(Number(req.params.id));
+  if (!row) return res.status(404).json({ error: '学生不存在' });
+  const base = ftpBaseOf(row);
+  if (!fs.existsSync(base)) return res.status(404).json({ error: '空间目录不存在' });
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', contentDisposition(`${row.student_no}_${row.name}_ftp.zip`));
+  const archive = new ZipArchive({ zlib: { level: 9 } });
+  archive.on('error', () => res.destroy());
+  archive.pipe(res);
+  archive.directory(base, false);
+  archive.finalize();
+});
+
 export default router;

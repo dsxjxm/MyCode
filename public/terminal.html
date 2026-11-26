@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FTP / Telnet 实训 · 局域网仿真实训教学平台</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+  <style>
+    .term-body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    .term-main { flex: 1; display: grid; grid-template-columns: 300px 1fr; min-height: 0; }
+    .term-side { background: #f8fafc; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; }
+    .term-side .side-block { padding: 14px 16px; border-bottom: 1px solid #e2e8f0; }
+    .term-side .side-block h4 { margin: 0 0 10px; font-size: 13px; color: #475569; font-weight: 600; }
+    .mode-switch { display: flex; gap: 6px; }
+    .mode-switch button { flex: 1; padding: 8px; border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; cursor: pointer; font-size: 13px; color: #475569; }
+    .mode-switch button.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+    .status-line { font-size: 12px; color: #64748b; line-height: 1.9; }
+    .status-line b { color: #0f172a; }
+    .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .quick-grid button { padding: 6px 4px; font-size: 12px; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; cursor: pointer; color: #334155; }
+    .quick-grid button:hover { background: #eff6ff; border-color: #93c5fd; }
+    .upload-btn { width: 100%; padding: 8px; font-size: 13px; }
+    .history-list { flex: 1; overflow-y: auto; padding: 8px 16px; }
+    .history-item { padding: 4px 6px; font-size: 12px; font-family: Consolas, Monaco, monospace; color: #475569; cursor: pointer; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-item:hover { background: #e0f2fe; color: #0c4a6e; }
+    .term-terminal { display: flex; flex-direction: column; background: #0d1117; min-height: 0; }
+    .term-output { flex: 1; overflow-y: auto; padding: 14px 18px; font-family: Consolas, "Courier New", Monaco, monospace; font-size: 13.5px; line-height: 1.6; color: #e6edf3; }
+    .term-output .line { white-space: pre-wrap; word-break: break-all; }
+    .term-output .echo { color: #7ee787; }
+    .term-output .code { color: #79c0ff; }
+    .term-output .err { color: #ff7b72; }
+    .term-output .dim { color: #8b949e; }
+    .term-output .get-link { color: #58a6ff; text-decoration: underline; cursor: pointer; margin-left: 8px; }
+    .term-input-row { display: flex; align-items: center; padding: 10px 18px; border-top: 1px solid #30363d; background: #161b22; }
+    .term-prompt { color: #7ee787; font-family: Consolas, Monaco, monospace; font-size: 13.5px; margin-right: 8px; white-space: nowrap; }
+    .term-input { flex: 1; background: transparent; border: none; outline: none; color: #e6edf3; font-family: Consolas, Monaco, monospace; font-size: 13.5px; }
+    .term-hint { padding: 6px 18px; font-size: 11px; color: #8b949e; background: #161b22; }
+    .topbar .mode-tab { display: flex; gap: 4px; margin-left: 16px; }
+    .topbar .mode-tab a { padding: 5px 12px; border-radius: 6px; font-size: 13px; color: #cbd5e1; text-decoration: none; }
+    .topbar .mode-tab a.active { background: rgba(255,255,255,0.15); color: #fff; }
+    .topbar .mode-tab a:hover { background: rgba(255,255,255,0.1); }
+  </style>
+</head>
+<body class="app-body term-body">
+  <header class="topbar topbar-compact">
+    <div class="brand">
+      <span class="logo-badge small">LAN</span>
+      <span class="brand-name">FTP / Telnet 实训</span>
+    </div>
+    <nav class="mode-tab">
+      <a href="/workspace.html">WWW 实训</a>
+      <a href="/terminal.html" class="active">FTP / Telnet</a>
+    </nav>
+    <div class="topbar-right">
+      <span class="user-chip" id="userChip"></span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">退出</button>
+    </div>
+  </header>
+
+  <div class="term-main">
+    <aside class="term-side">
+      <div class="side-block">
+        <h4>实训模式</h4>
+        <div class="mode-switch">
+          <button type="button" data-mode="ftp" class="active">FTP</button>
+          <button type="button" data-mode="telnet">Telnet</button>
+        </div>
+      </div>
+      <div class="side-block">
+        <h4>连接状态</h4>
+        <div class="status-line" id="statusLine">未连接</div>
+      </div>
+      <div class="side-block">
+        <h4>快捷命令</h4>
+        <div class="quick-grid" id="quickGrid"></div>
+        <input type="file" id="fileInput" hidden>
+        <button class="btn btn-ghost btn-sm upload-btn" id="uploadBtn" type="button" style="margin-top:8px">上传文件（put）</button>
+      </div>
+      <div class="side-block" style="flex:1; display:flex; flex-direction:column; padding:0; border-bottom:none;">
+        <h4 style="padding:14px 16px 6px; margin:0;">命令历史</h4>
+        <div class="history-list" id="historyList"></div>
+      </div>
+    </aside>
+
+    <section class="term-terminal">
+      <div class="term-output" id="output"></div>
+      <div class="term-input-row">
+        <span class="term-prompt" id="prompt">ftp&gt;</span>
+        <input class="term-input" id="cmdInput" autocomplete="off" spellcheck="false" placeholder="输入命令，回车发送；help 查看帮助">
+      </div>
+      <div class="term-hint">提示：FTP 依次执行 open → user 学号 → pass 密码 登录；Telnet 执行 open 主机 后按提示输入账号密码。</div>
+    </section>
+  </div>
+
+  <div class="toast-wrap"></div>
+  <script type="module" src="/assets/js/terminal.js"></script>
+</body>
+</html>

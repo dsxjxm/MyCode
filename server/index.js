@@ -11,6 +11,7 @@ import studentRoutes from './routes/students.js';
 import spaceRoutes from './routes/space.js';
 import previewRoutes from './routes/preview.js';
 import noticeRoutes from './routes/notices.js';
+import terminalRoutes from './routes/terminal.js';
 
 ensureDirs();
 
@@ -28,6 +29,7 @@ app.use('/api/classes', classRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/space', spaceRoutes);
 app.use('/api/notices', noticeRoutes);
+app.use('/api/terminal', terminalRoutes);
 app.use('/preview', previewRoutes);
 
 function redirectByRole(res, role) {
@@ -54,6 +56,12 @@ app.get('/workspace.html', (req, res) => {
   if (!req.user) return res.redirect('/login.html');
   if (req.user.role !== 'student') return res.redirect('/admin.html');
   res.sendFile(path.join(PUBLIC_DIR, 'workspace.html'));
+});
+
+app.get('/terminal.html', (req, res) => {
+  if (!req.user) return res.redirect('/login.html');
+  if (req.user.role !== 'student') return res.redirect('/admin.html');
+  res.sendFile(path.join(PUBLIC_DIR, 'terminal.html'));
 });
 
 app.get('/favicon.ico', (req, res) => res.status(204).end());

@@ -134,6 +134,7 @@ function bindActions() {
     if (act === 'edit-student') studentDialog(student);
     if (act === 'reset-pwd') resetPassword(student);
     if (act === 'space') spaceDialog(student);
+    if (act === 'ftp-space') ftpSpaceDialog(student);
     if (act === 'del-student') deleteStudent(student);
   });
 }
@@ -399,6 +400,7 @@ function renderStudents() {
         <td class="muted">${escapeHtml(student.folder)}</td>
         <td class="right">
           <button class="btn btn-ghost btn-sm" data-act="space" data-id="${student.id}" type="button">站点空间</button>
+          <button class="btn btn-ghost btn-sm" data-act="ftp-space" data-id="${student.id}" type="button">FTP 空间</button>
           <button class="btn btn-ghost btn-sm" data-act="edit-student" data-id="${student.id}" type="button">编辑</button>
           <button class="btn btn-ghost btn-sm" data-act="reset-pwd" data-id="${student.id}" type="button">重置密码</button>
           <button class="btn btn-danger-ghost btn-sm" data-act="del-student" data-id="${student.id}" type="button">删除</button>
@@ -667,6 +669,57 @@ async function spaceDialog(student) {
         try {
           const data = await api(
             `/api/students/${student.id}/file?path=${encodeURIComponent(row.dataset.path)}`
+          );
+          preview.textContent = data.content;
+        } catch (err) {
+          preview.textContent = `无法预览：${err.message}`;
+        }
+      });
+    });
+  } catch (err) {
+    dlg.body.innerHTML = `<p class="dialog-text">加载失败：${escapeHtml(err.message)}</p>`;
+  }
+}
+
+async function ftpSpaceDialog(student) {
+  const dlg = openDialog({
+    title: `${student.name} 的 FTP 空间`,
+    body: '<div class="loading">正在加载空间文件…</div>',
+    width: 820
+  });
+  try {
+    const { files, spacePath } = await api(`/api/students/${student.id}/ftp/files`);
+    const fileRows = files
+      .filter((file) => file.type === 'file')
+      .map((file) => {
+        const depth = file.path.split('/').length - 1;
+        return `
+          <div class="space-file" data-path="${escapeHtml(file.path)}" style="padding-left:${12 + depth * 16}px">
+            <span class="space-file-name">${escapeHtml(file.name)}</span>
+            <span class="space-file-size">${formatSize(file.size)}</span>
+            <a class="space-file-dl" href="/api/students/${student.id}/ftp/file?path=${encodeURIComponent(file.path)}&download=1">下载</a>
+          </div>`;
+      })
+      .join('');
+    dlg.body.innerHTML = `
+      <div class="space-head">
+        <span class="badge">ftp</span>
+        <code>${escapeHtml(spacePath)}/ftp</code>
+        <div class="space-actions">
+          <a class="btn btn-ghost btn-sm" href="/api/students/${student.id}/ftp/download-zip">打包下载</a>
+        </div>
+      </div>
+      <div class="space-layout">
+        <div class="space-list">${fileRows || '<div class="empty">暂无文件</div>'}</div>
+        <div class="space-preview"><pre id="ftpSpacePreview">点击左侧文件查看内容</pre></div>
+      </div>`;
+    const preview = dlg.body.querySelector('#ftpSpacePreview');
+    dlg.body.querySelectorAll('.space-file').forEach((row) => {
+      row.addEventListener('click', async () => {
+        preview.textContent = '加载中…';
+        try {
+          const data = await api(
+            `/api/students/${student.id}/ftp/file?path=${encodeURIComponent(row.dataset.path)}`
           );
           preview.textContent = data.content;
         } catch (err) {
