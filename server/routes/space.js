@@ -5,6 +5,7 @@ import multer from 'multer';
 import { db } from '../db.js';
 import { buildPreviewToken, requireStudent } from '../auth.js';
 import {
+  decodeUploadName,
   listTree,
   readTextFile,
   removePath,
@@ -127,7 +128,7 @@ router.post('/upload', upload.single('file'), (req, res) => {
     return res.status(400).json({ error: '上传目标不是文件夹' });
   }
   fs.mkdirSync(dirAbs, { recursive: true });
-  const filename = sanitizeName(path.basename(req.file.originalname), 'upload.bin');
+  const filename = sanitizeName(decodeUploadName(path.basename(req.file.originalname)), 'upload.bin');
   const abs = resolveInside(dirAbs, filename);
   if (!abs) return res.status(400).json({ error: '非法文件名' });
   fs.writeFileSync(abs, req.file.buffer);

@@ -115,6 +115,28 @@
     </section>
   </div>
 
+  <button class="ref-fab" id="refFab" type="button" title="HTML / CSS / JS 语法速查">
+    <span class="ref-fab-ico">&lt;/&gt;</span><span>语法帮助</span>
+  </button>
+  <aside class="ref-panel" id="refPanel" hidden>
+    <div class="ref-head" id="refHead">
+      <span class="ref-title">语法速查 · HTML / CSS / JS</span>
+      <div class="ref-head-actions">
+        <button class="ref-icon-btn" id="refCollapseBtn" type="button" title="收起">－</button>
+        <button class="ref-icon-btn" id="refCloseBtn" type="button" title="关闭">×</button>
+      </div>
+    </div>
+    <div class="ref-body" id="refBody">
+      <div class="ref-tabs" id="refTabs">
+        <button class="ref-tab active" type="button" data-ref-tab="html">HTML</button>
+        <button class="ref-tab" type="button" data-ref-tab="css">CSS</button>
+        <button class="ref-tab" type="button" data-ref-tab="js">JavaScript</button>
+      </div>
+      <input class="ref-search" id="refSearch" type="search" placeholder="搜索标签、属性、语法…">
+      <div class="ref-list" id="refList"></div>
+    </div>
+  </aside>
+
   <input type="file" id="fileInput" multiple hidden>
   <div class="toast-wrap"></div>
 

@@ -8,6 +8,7 @@ import {
   promptDialog,
   toast
 } from './common.js';
+import { initWebRef } from './webref.js';
 
 window.ace.config.set('basePath', '/assets/ace');
 window.ace.config.set('modePath', '/assets/ace');
@@ -74,6 +75,20 @@ async function init() {
   bindLogout(el.logoutBtn);
   initEditor();
   bindEvents();
+  initWebRef({
+    getActiveExt: () => {
+      const tab = activeTab();
+      if (!tab) return '';
+      return (tab.path.split('.').pop() || '').toLowerCase();
+    },
+    onInsert: (text) => {
+      if (!activeTab()) return false;
+      editor.focus();
+      editor.insert(text);
+      editor.focus();
+      return true;
+    }
+  });
   await loadSpace();
   await loadNotices();
 }

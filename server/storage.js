@@ -1,8 +1,68 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import iconv from 'iconv-lite';
 import { CLASSES_DIR, TRASH_DIR } from './paths.js';
 
 export const STUDENT_SUBDIRS = ['www', 'ftp', 'homework', 'design'];
+
+// multipart 上传的文件名默认按 latin1 解析，中文会变成「ä»‹ç»」这类乱码。
+// 这里把典型的乱码还原成 UTF-8（再兜底尝试 GBK）。
+export function decodeUploadName(raw) {
+  const name = String(raw || '');
+  if (!name) return name;
+  // 不含 latin1 区字符（纯 ASCII 或已是正常中文）时无需处理
+  if (!/[\u0080-\u00ff]/.test(name)) return name;
+  // 含 latin1 之外的字符，说明已经正确解码
+  if (/[^\u0000-\u00ff]/.test(name)) return name;
+  const buf = Buffer.from(name, 'latin1');
+  try {
+    const utf8 = buf.toString('utf8');
+    if (!utf8.includes('\ufffd')) return utf8;
+  } catch {
+    /* ignore */
+  }
+  try {
+    const gbk = iconv.decode(buf, 'gbk');
+    if (gbk && !gbk.includes('\ufffd')) return gbk;
+  } catch {
+    /* ignore */
+  }
+  return name;
+}
+
+// 扫描目录，把历史遗留的乱码文件名改正（仅处理能还原出中文的）
+export function repairMojibakeNames(baseDir, depth = 0) {
+  let fixed = 0;
+  if (depth > 12) return fixed;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  } catch {
+    return fixed;
+  }
+  for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue;
+    const abs = path.join(baseDir, entry.name);
+    let nextName = entry.name;
+    const decoded = decodeUploadName(entry.name);
+    if (decoded !== entry.name && /[\u4e00-\u9fff]/.test(decoded)) {
+      const target = path.join(baseDir, sanitizeName(decoded, entry.name));
+      if (!fs.existsSync(target)) {
+        try {
+          fs.renameSync(abs, target);
+          nextName = path.basename(target);
+          fixed += 1;
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    if (entry.isDirectory()) {
+      fixed += repairMojibakeNames(path.join(baseDir, nextName), depth + 1);
+    }
+  }
+  return fixed;
+}
 
 export function sanitizeName(input, fallback = '未命名') {
   const cleaned = String(input ?? '')

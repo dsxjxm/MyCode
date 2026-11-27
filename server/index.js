@@ -2,8 +2,9 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import express from 'express';
-import { ensureDirs, PUBLIC_DIR } from './paths.js';
+import { CLASSES_DIR, ensureDirs, PUBLIC_DIR } from './paths.js';
 import { dbReady } from './db.js';
+import { repairMojibakeNames } from './storage.js';
 import { loadUser } from './auth.js';
 import authRoutes from './routes/auth.js';
 import classRoutes from './routes/classes.js';
@@ -101,6 +102,12 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 // 等待数据库初始化完成后再监听端口
 dbReady.then(() => {
+  try {
+    const fixed = repairMojibakeNames(CLASSES_DIR);
+    if (fixed) console.log(`  [存储] 已修正 ${fixed} 个乱码文件名`);
+  } catch (err) {
+    console.warn('[存储] 修正乱码文件名失败:', err.message);
+  }
   const server = http.createServer(app);
   server.listen(PORT, HOST, () => {
     startMailScheduler();
