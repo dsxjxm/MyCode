@@ -17,6 +17,9 @@ import networkRoutes from './routes/network.js';
 import mailRoutes from './routes/mail.js';
 import { startMailScheduler } from './services/mailSim.js';
 
+// 密码校验等 CPU 任务走 libuv 线程池，双核机器也能吃到第二个核（须在首次使用前设置）
+if (!process.env.UV_THREADPOOL_SIZE) process.env.UV_THREADPOOL_SIZE = '8';
+
 ensureDirs();
 
 const app = express();
@@ -109,6 +112,10 @@ dbReady.then(() => {
     console.warn('[存储] 修正乱码文件名失败:', err.message);
   }
   const server = http.createServer(app);
+  // 局域网内浏览器会复用长连接：默认 5s 空闲就断开，容易和客户端复用产生 ECONNRESET
+  server.keepAliveTimeout = 65000;
+  server.headersTimeout = 66000;
+  server.requestTimeout = 30000;
   server.listen(PORT, HOST, () => {
     startMailScheduler();
     const interfaces = os.networkInterfaces();

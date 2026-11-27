@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db.js';
-import { hashPassword, verifyPassword } from '../password.js';
+import { hashPassword, verifyPassword, verifyPasswordAsync } from '../password.js';
 import {
   buildPreviewToken,
   clearSessionCookie,
@@ -28,7 +28,7 @@ function studentSummary(row) {
   };
 }
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '');
   if (!username || !password) {
@@ -36,7 +36,7 @@ router.post('/login', (req, res) => {
   }
 
   const teacher = db.prepare('SELECT * FROM teachers WHERE username = ?').get(username);
-  if (teacher && verifyPassword(password, teacher.password_hash)) {
+  if (teacher && (await verifyPasswordAsync(password, teacher.password_hash))) {
     const token = createSession('teacher', teacher.id);
     setSessionCookie(res, token);
     return res.json({ user: teacherSummary(teacher) });
@@ -48,7 +48,7 @@ router.post('/login', (req, res) => {
        JOIN classes c ON c.id = s.class_id WHERE s.username = ?`
     )
     .get(username);
-  if (student && verifyPassword(password, student.password_hash)) {
+  if (student && (await verifyPasswordAsync(password, student.password_hash))) {
     if (student.status !== 'active') {
       return res.status(403).json({ error: '该学生账号已停用，请联系教师' });
     }

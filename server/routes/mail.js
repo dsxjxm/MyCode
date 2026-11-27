@@ -13,7 +13,7 @@ import {
   listBlacklist, addBlacklist, removeBlacklist,
   createScheduled, listScheduled, cancelScheduled, runDueScheduled
 } from '../services/mailSim.js';
-import { verifyPassword, hashPassword } from '../password.js';
+import { verifyPassword, hashPassword, verifyPasswordAsync } from '../password.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -228,7 +228,7 @@ router.post('/register', requireLogin, (req, res) => {
 });
 
 // 学生登录自己的邮箱（密码或短信验证码）
-router.post('/login', requireLogin, (req, res) => {
+router.post('/login', requireLogin, async (req, res) => {
   if (req.user.role !== 'student') return res.status(403).json({ error: '教师无需邮箱登录' });
   const { address, password, code, method = 'password' } = req.body || {};
   const addr = normAddress(address);
@@ -240,7 +240,7 @@ router.post('/login', requireLogin, (req, res) => {
   if (method === 'sms') {
     const err = checkSmsCode({ target: addr, purpose: 'login', code });
     if (err) return res.status(400).json({ error: err });
-  } else if (!verifyPassword(String(password || ''), acct.password_hash)) {
+  } else if (!(await verifyPasswordAsync(String(password || ''), acct.password_hash))) {
     return res.status(401).json({ error: '密码错误' });
   }
   const token = createMailSession(acct, req.user.id);

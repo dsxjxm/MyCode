@@ -17,14 +17,53 @@ function now() {
 }
 
 // 写操作后持久化到文件（sql.js 是内存 DB）
-function persist() {
+// 合并写：250ms 内的多次写只做一次「整库导出 + 落盘」，
+// 避免并发写时（登录、发邮件、保存设置）互相排队把事件循环堵死。
+const PERSIST_DEBOUNCE_MS = 250;
+let persistTimer = null;
+let dirty = false;
+
+function flushDb() {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  if (!dirty || !innerDb) return;
+  dirty = false;
   try {
-    const data = innerDb.export();
-    fs.writeFileSync(DB_FILE, Buffer.from(data));
+    const data = Buffer.from(innerDb.export());
+    const tmp = DB_FILE + '.tmp';
+    fs.writeFileSync(tmp, data);
+    fs.renameSync(tmp, DB_FILE);
   } catch (e) {
+    dirty = true;
     console.warn('[db] persist failed:', e.message);
   }
 }
+
+function persist() {
+  if (!innerDb) return;
+  dirty = true;
+  if (persistTimer) return;
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    flushDb();
+  }, PERSIST_DEBOUNCE_MS);
+  if (persistTimer.unref) persistTimer.unref();
+}
+
+// 进程退出/被中断前保证落盘（最多丢 250ms 内的写）
+process.on('exit', flushDb);
+process.on('SIGINT', () => {
+  flushDb();
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  flushDb();
+  process.exit(0);
+});
+
+export { flushDb };
 
 function getLastInsertRowid() {
   const rows = innerDb.exec('SELECT last_insert_rowid() AS id');
@@ -81,7 +120,7 @@ class DbWrapper {
     persist();
   }
   close() {
-    persist();
+    flushDb();
     innerDb.close();
   }
 }

@@ -77,7 +77,7 @@ function dbKB() {
   }
 }
 
-function request(path, opts) {
+function requestOnce(path, opts, fresh) {
   opts = opts || {};
   const method = opts.method || 'GET';
   const payload = opts.body === undefined ? null : Buffer.from(JSON.stringify(opts.body));
@@ -88,6 +88,7 @@ function request(path, opts) {
   }
   if (opts.cookie) headers.Cookie = opts.cookie;
   if (opts.mailToken) headers['x-mail-token'] = opts.mailToken;
+  if (fresh) headers.Connection = 'close';
 
   return new Promise(function (resolve) {
     const t0 = Date.now();
@@ -99,7 +100,7 @@ function request(path, opts) {
         path: url.pathname + url.search,
         method: method,
         headers: headers,
-        agent: agent
+        agent: fresh ? false : agent
       },
       function (res) {
         const chunks = [];
@@ -123,6 +124,24 @@ function request(path, opts) {
     });
     if (payload) req.write(payload);
     req.end();
+  });
+}
+
+let retries = 0;
+// 长连接偶发被服务端关闭会出现 ECONNRESET；对幂等的 GET 与登录换新连接重试，
+// 写操作（保存/发邮件）不重试，避免重复提交影响结果。
+function request(path, opts, attempt) {
+  attempt = attempt || 1;
+  return requestOnce(path, opts, attempt > 1).then(function (res) {
+    const method = (opts && opts.method) || 'GET';
+    const safeToRetry = method === 'GET' || /\/api\/(auth|mail)\/login$/.test(path);
+    if (res.status === 0 && safeToRetry && attempt < 3) {
+      retries += 1;
+      return new Promise(function (r) { setTimeout(r, 80 * attempt); }).then(function () {
+        return request(path, opts, attempt + 1);
+      });
+    }
+    return res;
   });
 }
 
@@ -268,7 +287,7 @@ async function main() {
     }
     await sleep(1000);
   }
-  console.log('\n压测结束');
+  console.log('\n压测结束，网络层重试 ' + retries + ' 次（ECONNRESET 等，已自动换新连接）');
 }
 
 main().catch(function (err) {
