@@ -48,6 +48,8 @@ async function init() {
   await loadStudents();
   await loadOverview();
   loadModuleSettings();
+  const semesterInput = document.getElementById('archiveSemester');
+  if (semesterInput && !semesterInput.value) semesterInput.value = defaultSemester();
 }
 
 // 模块设置：是否允许学生编辑网络配置
@@ -75,14 +77,245 @@ async function loadModuleSettings() {
 function bindNav() {
   document.querySelectorAll('.nav-item').forEach((btn) => {
     btn.addEventListener('click', () => {
+      const view = btn.dataset.view;
       document.querySelectorAll('.nav-item').forEach((item) => item.classList.remove('active'));
       btn.classList.add('active');
-      document.querySelectorAll('.view').forEach((view) => view.classList.remove('active'));
-      document.getElementById(`view-${btn.dataset.view}`).classList.add('active');
-      if (btn.dataset.view === 'students') loadStudents();
-      if (btn.dataset.view === 'overview') loadOverview();
+      document.querySelectorAll('.view').forEach((item) => item.classList.remove('active'));
+      document.getElementById(`view-${view}`).classList.add('active');
+      if (view !== 'monitor') stopMonitor();
+      if (view === 'students') loadStudents();
+      if (view === 'overview') loadOverview();
+      if (view === 'monitor') startMonitor();
+      if (view === 'archive') loadArchives();
     });
   });
+}
+
+// ==================== 运行监控 ====================
+const monitor = { timer: null, running: false, loading: false };
+
+function startMonitor() {
+  if (monitor.running) return;
+  monitor.running = true;
+  const toggle = document.getElementById('monitorToggleBtn');
+  if (toggle) toggle.textContent = '暂停刷新';
+  loadMonitor();
+  monitor.timer = setInterval(loadMonitor, 3000);
+}
+
+function stopMonitor() {
+  if (monitor.timer) clearInterval(monitor.timer);
+  monitor.timer = null;
+  monitor.running = false;
+  const toggle = document.getElementById('monitorToggleBtn');
+  if (toggle) toggle.textContent = '恢复刷新';
+}
+
+async function loadMonitor() {
+  if (monitor.loading) return;
+  monitor.loading = true;
+  try {
+    const data = await api('/api/admin/metrics');
+    renderMonitor(data);
+  } catch (err) {
+    const updated = document.getElementById('monitorUpdated');
+    if (updated) updated.textContent = `刷新失败：${err.message}`;
+  } finally {
+    monitor.loading = false;
+  }
+}
+
+function formatDuration(sec) {
+  const total = Math.max(0, Math.floor(sec || 0));
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const mi = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (d > 0) return `${d}天 ${h}小时`;
+  if (h > 0) return `${h}小时 ${mi}分`;
+  if (mi > 0) return `${mi}分 ${s}秒`;
+  return `${s}秒`;
+}
+
+function renderMonitor(m) {
+  const set = (id, text) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = text;
+  };
+  const online = m.online || {};
+  const traffic = m.traffic || {};
+  const sys = m.system || {};
+  const login = m.login || {};
+
+  set('monOnline', String(online.total || 0));
+  set('monOnlineSub', `教师 ${online.teachers || 0} · 学生 ${online.students || 0}`);
+  set('monRps', String(traffic.rps || 0));
+  set('monP95', `${traffic.p95 || 0} ms`);
+  set('monLatencySub', `平均 ${traffic.avg || 0} ms · P99 ${traffic.p99 || 0} ms`);
+  set('monCpu', `${sys.cpuPercent || 0}%`);
+  set('monCpuSub', `${sys.cpuCount || 0} 核`);
+  set('monLoad', Number(sys.load1 || 0).toFixed(2));
+  set('monLoadSub', `5m ${Number(sys.load5 || 0).toFixed(2)} · 15m ${Number(sys.load15 || 0).toFixed(2)}`);
+  set('monMem', formatSize(sys.memRss || 0));
+  set('monMemSub', `堆 ${formatSize(sys.memHeapUsed || 0)} · 系统空闲 ${formatSize(sys.memFree || 0)}`);
+  set('monErrors', String(traffic.errorRequests || 0));
+  set('monTotalSub', `累计 ${traffic.totalRequests || 0} 次请求`);
+  set('monQueue', String(login.queued || 0));
+  set('monQueueSub', `并发上限 ${login.maxConcurrent || 0} · 累计限流 ${login.throttled || 0} 次`);
+  set('monUptime', formatDuration(m.uptimeSec || 0));
+  set('monUptimeSub', m.serverTime ? `更新于 ${formatTime(m.serverTime)}` : '');
+  set('monDbSize', formatSize((m.db && m.db.sizeBytes) || 0));
+  set('monitorUpdated', m.serverTime ? `更新于 ${formatTime(m.serverTime)}` : '—');
+
+  const onlineList = online.list || [];
+  const onlineBody = document.getElementById('onlineTable');
+  if (onlineBody) {
+    onlineBody.innerHTML = onlineList
+      .map(
+        (u) => `
+        <tr>
+          <td><b>${escapeHtml(u.name)}</b></td>
+          <td>${u.role === 'teacher' ? '教师' : '学生'}</td>
+          <td class="mono">${escapeHtml(u.username)}</td>
+          <td class="muted">${formatTime(u.lastSeen)}</td>
+          <td class="mono">${escapeHtml(u.ip || '')}</td>
+        </tr>`
+      )
+      .join('');
+  }
+  const onlineEmpty = document.getElementById('onlineEmpty');
+  if (onlineEmpty) onlineEmpty.hidden = onlineList.length > 0;
+  const onlineMeta = document.getElementById('onlineMeta');
+  if (onlineMeta) onlineMeta.textContent = `近 ${online.windowSec || 180} 秒内有活动`;
+
+  const slowItems = (m.slow && m.slow.items) || [];
+  const slowBody = document.getElementById('slowTable');
+  if (slowBody) {
+    slowBody.innerHTML = slowItems
+      .map(
+        (s) => `
+        <tr>
+          <td class="muted mono">${formatTime(s.at)}</td>
+          <td class="mono">${escapeHtml(s.method)} ${escapeHtml(s.path)}</td>
+          <td><b>${s.ms} ms</b></td>
+          <td>${s.status}</td>
+          <td class="muted">${escapeHtml(s.user)}</td>
+        </tr>`
+      )
+      .join('');
+  }
+  const slowEmpty = document.getElementById('slowEmpty');
+  if (slowEmpty) slowEmpty.hidden = slowItems.length > 0;
+  const slowMeta = document.getElementById('slowMeta');
+  if (slowMeta) slowMeta.textContent = `最近 ${slowItems.length} 条 · ≥ ${(m.slow && m.slow.thresholdMs) || 500} ms`;
+}
+
+// ==================== 学期归档 ====================
+function defaultSemester() {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  const startYear = month >= 9 ? year : year - 1;
+  const term = month >= 9 || month <= 1 ? '第一学期' : '第二学期';
+  return `${startYear}-${startYear + 1}学年${term}`;
+}
+
+async function loadArchives() {
+  let data;
+  try {
+    data = await api('/api/admin/archives');
+  } catch (err) {
+    toast(err.message, 'error');
+    return;
+  }
+  const archives = data.archives || [];
+  const body = document.getElementById('archiveTable');
+  if (body) {
+    body.innerHTML = archives
+      .map(
+        (a) => `
+        <tr>
+          <td class="mono">${escapeHtml(a.name)}</td>
+          <td>${formatSize(a.size)}</td>
+          <td class="muted">${formatTime(a.createdAt)}</td>
+          <td class="right">
+            <a class="btn btn-ghost btn-sm" href="/api/admin/archives/${encodeURIComponent(a.name)}/download">下载</a>
+            <button class="btn btn-danger-ghost btn-sm" data-archive-del="${escapeHtml(a.name)}" type="button">删除</button>
+          </td>
+        </tr>`
+      )
+      .join('');
+  }
+  const empty = document.getElementById('archiveEmpty');
+  if (empty) empty.hidden = archives.length > 0;
+  const meta = document.getElementById('archiveMeta');
+  if (meta) meta.textContent = `${archives.length} 个`;
+  const dir = document.getElementById('archiveDir');
+  if (dir && data.dir) dir.textContent = `归档目录：${data.dir}`;
+}
+
+async function createArchive() {
+  const semesterEl = document.getElementById('archiveSemester');
+  const mailEl = document.getElementById('archiveCleanMail');
+  const trashEl = document.getElementById('archiveCleanTrash');
+  const btn = document.getElementById('createArchiveBtn');
+  const semester = semesterEl ? semesterEl.value.trim() : '';
+  const cleanupMail = !!(mailEl && mailEl.checked);
+  const cleanupTrash = !!(trashEl && trashEl.checked);
+  const extras = [cleanupMail ? '清理邮件' : '', cleanupTrash ? '清空回收站' : '']
+    .filter(Boolean)
+    .join('、');
+  const ok = await confirmDialog({
+    title: '确认归档',
+    message: `将保存当前数据库快照${extras ? `，并${extras}` : ''}。清理后不可恢复（归档文件保留清理前数据），确定继续吗？`,
+    okText: '开始归档',
+    danger: cleanupMail || cleanupTrash
+  });
+  if (!ok) return;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '归档中…';
+  }
+  try {
+    const result = await api('/api/admin/archives', {
+      method: 'POST',
+      body: { semester, cleanupMail, cleanupTrash }
+    });
+    const c = result.cleanup || {};
+    const detail = [];
+    if (cleanupMail) detail.push(`清理邮件 ${c.mailMessages || 0} 封`);
+    if (cleanupTrash) detail.push(`清理回收站 ${c.trashEntries || 0} 项`);
+    toast(
+      `归档已创建：${result.archive.name}${detail.length ? `（${detail.join('，')}）` : ''}`,
+      'success'
+    );
+    await loadArchives();
+  } catch (err) {
+    toast(err.message, 'error');
+    await loadArchives();
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '立即归档';
+    }
+  }
+}
+
+async function deleteArchive(name) {
+  const ok = await confirmDialog({
+    title: '删除归档',
+    message: `确定删除归档「${escapeHtml(name)}」吗？此操作不可恢复。`,
+    okText: '删除',
+    danger: true
+  });
+  if (!ok) return;
+  try {
+    await api(`/api/admin/archives/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    toast('归档已删除', 'success');
+    await loadArchives();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
 function bindActions() {
@@ -159,6 +392,19 @@ function bindActions() {
     if (act === 'space') spaceDialog(student);
     if (act === 'ftp-space') ftpSpaceDialog(student);
     if (act === 'del-student') deleteStudent(student);
+  });
+
+  document.getElementById('monitorToggleBtn').addEventListener('click', () => {
+    if (monitor.running) stopMonitor();
+    else startMonitor();
+  });
+  document.getElementById('monitorRefreshBtn').addEventListener('click', loadMonitor);
+  document.getElementById('archiveRefreshBtn').addEventListener('click', loadArchives);
+  document.getElementById('createArchiveBtn').addEventListener('click', createArchive);
+  document.getElementById('archiveTable').addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-archive-del]');
+    if (!btn) return;
+    deleteArchive(btn.dataset.archiveDel);
   });
 }
 

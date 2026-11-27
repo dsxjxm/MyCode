@@ -18,6 +18,12 @@
     .module-card .m-actions { display: flex; gap: 8px; }
     .module-card .m-switch { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #3b4a5f; background: #f7f9fc; border-radius: 6px; padding: 8px 10px; }
     .module-card .m-switch input { width: 16px; height: 16px; accent-color: #2c5f8a; cursor: pointer; }
+    .monitor-sub { font-size: 11.5px; color: #8a95a8; margin-top: 4px; }
+    .stat-card .stat-num.small { font-size: 20px; }
+    .archive-checks { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 14px; }
+    .archive-checks label { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #3b4a5f; cursor: pointer; line-height: 1.5; }
+    .archive-checks input { width: 16px; height: 16px; margin-top: 2px; accent-color: #2c5f8a; cursor: pointer; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
   </style>
 </head>
 <body class="app-body">
@@ -41,6 +47,8 @@
       <button class="nav-item" data-view="classes" type="button"><span class="nav-ico">班</span>班级管理</button>
       <button class="nav-item" data-view="students" type="button"><span class="nav-ico">生</span>学生账户</button>
       <button class="nav-item" data-view="modules" type="button"><span class="nav-ico">块</span>模块管理</button>
+      <button class="nav-item" data-view="monitor" type="button"><span class="nav-ico">监</span>运行监控</button>
+      <button class="nav-item" data-view="archive" type="button"><span class="nav-ico">档</span>学期归档</button>
       <button class="nav-item" data-view="help" type="button"><span class="nav-ico">?</span>使用说明</button>
     </aside>
 
@@ -187,6 +195,98 @@
             <div class="m-actions">
               <a class="btn btn-primary btn-sm" href="/mail.html" target="_blank" rel="noopener">打开管理</a>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-monitor">
+        <div class="page-head">
+          <div>
+            <h2>运行监控</h2>
+            <p class="muted">在线人数、系统负载与慢请求实时概览，默认每 3 秒自动刷新。</p>
+          </div>
+          <div class="head-actions">
+            <span class="muted small" id="monitorUpdated">—</span>
+            <button class="btn btn-ghost btn-sm" id="monitorToggleBtn" type="button">暂停刷新</button>
+            <button class="btn btn-ghost btn-sm" id="monitorRefreshBtn" type="button">立即刷新</button>
+          </div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-num" id="monOnline">0</div><div class="stat-lbl">在线人数</div><div class="monitor-sub" id="monOnlineSub">教师 0 · 学生 0</div></div>
+          <div class="stat-card"><div class="stat-num" id="monRps">0</div><div class="stat-lbl">每秒请求</div><div class="monitor-sub">近 60 秒均值</div></div>
+          <div class="stat-card"><div class="stat-num" id="monP95">0</div><div class="stat-lbl">P95 延迟</div><div class="monitor-sub" id="monLatencySub">平均 0 ms</div></div>
+          <div class="stat-card"><div class="stat-num small" id="monCpu">0%</div><div class="stat-lbl">CPU 使用率</div><div class="monitor-sub" id="monCpuSub">0 核</div></div>
+          <div class="stat-card"><div class="stat-num small" id="monLoad">0.00</div><div class="stat-lbl">系统负载（1 分钟）</div><div class="monitor-sub" id="monLoadSub">5m 0.00 · 15m 0.00</div></div>
+          <div class="stat-card"><div class="stat-num small" id="monMem">0 MB</div><div class="stat-lbl">进程内存占用</div><div class="monitor-sub" id="monMemSub">系统空闲 0 MB</div></div>
+          <div class="stat-card"><div class="stat-num" id="monErrors">0</div><div class="stat-lbl">错误请求（5xx）</div><div class="monitor-sub" id="monTotalSub">累计 0 次</div></div>
+          <div class="stat-card"><div class="stat-num small" id="monQueue">0</div><div class="stat-lbl">登录排队</div><div class="monitor-sub" id="monQueueSub">并发上限 0</div></div>
+          <div class="stat-card"><div class="stat-num small" id="monUptime">—</div><div class="stat-lbl">运行时长</div><div class="monitor-sub" id="monUptimeSub">—</div></div>
+          <div class="stat-card"><div class="stat-num small" id="monDbSize">0 MB</div><div class="stat-lbl">数据库大小</div><div class="monitor-sub">platform.db</div></div>
+        </div>
+        <div class="overview-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>在线用户</h3>
+              <span class="muted small" id="onlineMeta">近 3 分钟内有活动</span>
+            </div>
+            <div class="table-scroll">
+              <table class="table table-compact">
+                <thead><tr><th>姓名</th><th>角色</th><th>账号</th><th>最近活动</th><th>IP</th></tr></thead>
+                <tbody id="onlineTable"></tbody>
+              </table>
+            </div>
+            <div class="empty" id="onlineEmpty" hidden>当前暂无在线用户</div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3>慢请求</h3>
+              <span class="muted small" id="slowMeta">≥ 500 ms</span>
+            </div>
+            <div class="table-scroll">
+              <table class="table table-compact">
+                <thead><tr><th>时间</th><th>请求</th><th>耗时</th><th>状态</th><th>用户</th></tr></thead>
+                <tbody id="slowTable"></tbody>
+              </table>
+            </div>
+            <div class="empty" id="slowEmpty" hidden>暂无慢请求</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-archive">
+        <div class="page-head">
+          <div>
+            <h2>学期归档</h2>
+            <p class="muted">一键把当前数据库保存为快照文件，适合学期切换时留档；可同时清理邮件与回收站。</p>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="archiveRefreshBtn" type="button">刷新列表</button>
+        </div>
+        <div class="overview-grid">
+          <div class="panel">
+            <h3>新建归档</h3>
+            <label class="field"><span>学期标识（可选）</span>
+              <input class="input" id="archiveSemester" placeholder="例如 2025-2026学年第一学期">
+            </label>
+            <div class="archive-checks">
+              <label><input type="checkbox" id="archiveCleanMail"> 归档后清理邮件（收件 / 发件 / 草稿 / 定时任务与附件）</label>
+              <label><input type="checkbox" id="archiveCleanTrash"> 归档后清空回收站（_trash 目录）</label>
+            </div>
+            <p class="hint">归档会先复制完整数据库快照，再执行勾选的清理操作。清理不可恢复，但归档文件中保留的是清理前的数据。</p>
+            <button class="btn btn-primary" id="createArchiveBtn" type="button">立即归档</button>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3>归档文件</h3>
+              <span class="muted small" id="archiveMeta">0 个</span>
+            </div>
+            <div class="table-scroll">
+              <table class="table table-compact">
+                <thead><tr><th>文件名</th><th>大小</th><th>创建时间</th><th class="right">操作</th></tr></thead>
+                <tbody id="archiveTable"></tbody>
+              </table>
+            </div>
+            <div class="empty" id="archiveEmpty" hidden>还没有归档文件</div>
+            <p class="hint mono" id="archiveDir"></p>
           </div>
         </div>
       </section>

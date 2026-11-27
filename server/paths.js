@@ -28,11 +28,12 @@ export const DATA_DIR = pickDataDir();
 export const CLASSES_DIR = path.join(DATA_DIR, 'classes');
 export const TRASH_DIR = path.join(DATA_DIR, '_trash');
 export const MAIL_ATTACH_DIR = path.join(DATA_DIR, 'mail-attachments');
+export const ARCHIVE_DIR = path.join(DATA_DIR, 'archives');
 export const PUBLIC_DIR = path.join(ROOT, 'public');
 export const DB_FILE = path.join(DATA_DIR, 'platform.db');
 
 export function ensureDirs() {
-  for (const dir of [DATA_DIR, CLASSES_DIR, TRASH_DIR, MAIL_ATTACH_DIR]) {
+  for (const dir of [DATA_DIR, CLASSES_DIR, TRASH_DIR, MAIL_ATTACH_DIR, ARCHIVE_DIR]) {
     fs.mkdirSync(dir, { recursive: true });
   }
 }

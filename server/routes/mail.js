@@ -14,6 +14,7 @@ import {
   createScheduled, listScheduled, cancelScheduled, runDueScheduled
 } from '../services/mailSim.js';
 import { verifyPassword, hashPassword, verifyPasswordAsync } from '../password.js';
+import { throttledLogin } from '../services/loginQueue.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -228,7 +229,7 @@ router.post('/register', requireLogin, (req, res) => {
 });
 
 // 学生登录自己的邮箱（密码或短信验证码）
-router.post('/login', requireLogin, async (req, res) => {
+router.post('/login', requireLogin, throttledLogin(async (req, res) => {
   if (req.user.role !== 'student') return res.status(403).json({ error: '教师无需邮箱登录' });
   const { address, password, code, method = 'password' } = req.body || {};
   const addr = normAddress(address);
@@ -245,7 +246,7 @@ router.post('/login', requireLogin, async (req, res) => {
   }
   const token = createMailSession(acct, req.user.id);
   res.json({ ok: true, token, account: publicAccount(acct) });
-});
+}));
 
 router.post('/logout', requireLogin, (req, res) => {
   const token = sessionToken(req);

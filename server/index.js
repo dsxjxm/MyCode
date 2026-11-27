@@ -15,7 +15,9 @@ import noticeRoutes from './routes/notices.js';
 import terminalRoutes from './routes/terminal.js';
 import networkRoutes from './routes/network.js';
 import mailRoutes from './routes/mail.js';
+import adminRoutes from './routes/admin.js';
 import { startMailScheduler } from './services/mailSim.js';
+import { metricsMiddleware } from './services/metrics.js';
 import { APP_BUILD, APP_NAME, APP_VERSION } from './version.js';
 
 // 密码校验等 CPU 任务走 libuv 线程池，双核机器也能吃到第二个核（须在首次使用前设置）
@@ -28,6 +30,7 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '8mb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(loadUser);
+app.use(metricsMiddleware);
 
 app.use('/assets', express.static(path.join(PUBLIC_DIR, 'assets')));
 app.use('/vendor', express.static(path.join(PUBLIC_DIR, 'vendor')));
@@ -40,6 +43,7 @@ app.use('/api/notices', noticeRoutes);
 app.use('/api/terminal', terminalRoutes);
 app.use('/api/network', networkRoutes);
 app.use('/api/mail', mailRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/preview', previewRoutes);
 
 function redirectByRole(res, role) {

@@ -8,6 +8,7 @@ import {
   deleteSession,
   setSessionCookie
 } from '../auth.js';
+import { throttledLogin } from '../services/loginQueue.js';
 
 const router = Router();
 
@@ -28,7 +29,7 @@ function studentSummary(row) {
   };
 }
 
-router.post('/login', async (req, res) => {
+router.post('/login', throttledLogin(async (req, res) => {
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '');
   if (!username || !password) {
@@ -58,7 +59,7 @@ router.post('/login', async (req, res) => {
   }
 
   return res.status(401).json({ error: '账号或密码错误' });
-});
+}));
 
 router.post('/logout', (req, res) => {
   deleteSession(req.sessionToken);
