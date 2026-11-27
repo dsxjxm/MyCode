@@ -8,7 +8,7 @@
 
 | 模块 | 内容 |
 | --- | --- |
-| WWW / IIS 站点 | 文件空间管理、分屏代码编辑器、实时预览、站点设置（默认文档、MIME、访问日志） |
+| WWW / IIS 站点 | 文件空间管理、分屏代码编辑器、实时预览、站点设置（默认文档、MIME、访问日志）、HTML/CSS/JS 语法速查悬浮面板（可拖拽/收起、搜索、一键插入） |
 | FTP / Telnet 终端 | 命令行模拟、目录浏览、上传下载、FTP 账号与空间管理 |
 | DNS / DHCP 网络模拟 | SVG 拓扑画布、PC 拖放、DHCP 地址池分配、DNS 记录解析、ipconfig/ping/nslookup/tracert/arp/netsh 命令模拟 |
 | 邮件服务器 SMTP / POP3 | 邮箱注册（别名、图形验证码、模拟短信）、密码/短信登录、收发邮件、附件、富文本、通讯簿、黑名单、定时发送、SMTP/POP3 协议日志 |
@@ -165,13 +165,14 @@ npm run dev    # 开发模式（后端改动自动重启）
 
 ---
 
-## 八、Windows 7 离线版（免安装 Node）
+## 八、Windows 7 / 8 离线版（免安装 Node）
 
-Windows 7 无法运行 Node 14 及以上版本（会报 `无法定位程序输入点 GetHostNameW`）。为此单独提供了 **Win7 离线版**压缩包：
+Windows 7 无法运行 Node 14 及以上版本（会报 `无法定位程序输入点 GetHostNameW`）。为此单独提供了离线版压缩包：
 
-- 内置 Node 12.22.12 的 64 位与 32 位运行环境（`node-x64.exe` / `node-x86.exe`），`启动.bat` 按系统架构自动选择
+- **Win7 离线版**：内置 Node 12.22.12 的 64 位与 32 位运行环境（`node-x64.exe` / `node-x86.exe`），`启动.bat` 按系统架构自动选择
+- **Win8 离线版**：内置 Node 14.21.3 的 64 位与 32 位运行环境，其余用法相同
 - 后端已用 esbuild 打包为单个 `dist\server\server.cjs`，无需 npm install、无需联网
-- 要求：Windows 7 **SP1**；建议装齐补丁，至少 KB2999226（UCRT）、KB4474419 / KB4490628（SHA-2）
-- 浏览器：Chrome / Edge 最高 109 版，或 360 极速浏览器、Firefox 115 ESR
+- 要求：Windows 7 **SP1** / Windows 8 / 8.1；建议装齐补丁，至少 KB2999226（UCRT）、KB4474419 / KB4490628（SHA-2）
+- 浏览器：Chrome / Edge 最高 109 版（Win7、Win8.1），或 360 极速浏览器、Firefox 115 ESR
 - 使用：解压后双击 `启动.bat`，访问 `http://localhost:3000`；数据保存在 `data\`（由启动脚本指定 `DATA_DIR`）
 
