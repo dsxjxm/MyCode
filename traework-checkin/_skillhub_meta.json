@@ -1,0 +1,11 @@
+{
+  "name": "TraeWork 每日签到领积分",
+  "installedAt": 0,
+  "source": "local",
+  "version": "1.0.0",
+  "skillId": "",
+  "description_zh": "TraeWork 每日积分自动签到。自动解密本地登录令牌（AES-128-CBC + SHA-512 密钥派生），调用官方签到 API 完成每日积分领取（免费用户 150 积分/天，会员用户 200 积分/天），支持多安装目录自动探测、幂等签到、定时任务配置。",
+  "description_en": "Automatically check in to TraeWork daily to claim credits (150/day for free, 200/day for members) by decrypting the local login token (AES-128-CBC + SHA-512 key derivation) and calling the official check-in API; supports multi-install auto-detection, idempotent check-in, and scheduled tasks.",
+  "iconSource": "letter:auto",
+  "installedContentHash": ""
+}
