@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WWW 实训 · 局域网仿真实训教学平台</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body class="app-body lab-body">
+  <header class="topbar topbar-compact">
+    <div class="brand">
+      <span class="logo-badge small">LAN</span>
+      <span class="brand-name">局域网仿真实训教学平台</span>
+    </div>
+    <nav class="mode-tab">
+      <a href="/workspace.html" class="active">WWW 实训</a>
+      <a href="/terminal.html">FTP / Telnet</a>
+      <a href="/network.html">DNS / DHCP</a>
+      <a href="/mail.html">邮件服务器</a>
+    </nav>
+    <div class="topbar-right">
+      <span class="user-chip" id="userChip"></span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">退出</button>
+    </div>
+  </header>
+
+  <div class="notice-bar" id="noticeBar" hidden></div>
+
+  <div class="lab" id="lab">
+    <aside class="file-pane">
+      <div class="pane-head">
+        <span>站点文件</span>
+        <div class="pane-actions">
+          <button class="mini-btn" id="newFileBtn" type="button" title="新建文件">+ 文件</button>
+          <button class="mini-btn" id="newDirBtn" type="button" title="新建文件夹">+ 文件夹</button>
+          <button class="mini-btn" id="uploadBtn" type="button" title="上传文件到当前目录">上传</button>
+        </div>
+      </div>
+      <div class="current-dir" id="currentDir">www/</div>
+      <div class="file-tree" id="fileTree"></div>
+      <div class="pane-foot"><span id="spacePath">个人空间</span></div>
+    </aside>
+
+    <section class="editor-pane">
+      <div class="tabs" id="tabs"></div>
+      <div class="editor-wrap">
+        <div id="editor"></div>
+        <div class="editor-empty" id="editorEmpty">
+          <div class="empty-icon">&lt;/&gt;</div>
+          <p>从左侧选择文件开始编辑</p>
+          <p class="muted small">支持 HTML / CSS / JS，保存后右侧实时渲染</p>
+        </div>
+      </div>
+      <div class="statusbar">
+        <span id="statusText">就绪</span>
+        <span class="status-right">
+          <span class="font-ctl">字号
+            <button class="mini-btn" id="fontDown" type="button" title="减小字号">A-</button>
+            <button class="mini-btn" id="fontUp" type="button" title="增大字号">A+</button>
+          </span>
+          <span id="saveState"></span>
+          <span id="cursorInfo"></span>
+        </span>
+      </div>
+    </section>
+
+    <div class="splitter" id="splitter" title="拖动调整宽度"></div>
+
+    <section class="preview-pane" id="previewPane">
+      <div class="preview-head">
+        <div class="preview-title">实时预览 <span class="preview-url" id="previewUrl"></span></div>
+        <div class="preview-actions">
+          <button class="btn btn-ghost btn-sm" id="refreshPreviewBtn" type="button">刷新</button>
+          <button class="btn btn-ghost btn-sm" id="fullscreenBtn" type="button">全屏</button>
+          <button class="btn btn-sm" id="settingsBtn" type="button">站点设置</button>
+        </div>
+      </div>
+      <div class="preview-body">
+        <iframe id="previewFrame" title="站点实时预览" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"></iframe>
+        <div class="settings-panel" id="settingsPanel" hidden>
+          <div class="settings-card">
+            <h3>WWW 服务设置（模拟 IIS）</h3>
+            <label class="switch-row">
+              <span>站点状态</span>
+              <span class="switch-ctl"><input type="checkbox" id="setSiteEnabled"><em id="siteEnabledText">已启动</em></span>
+            </label>
+            <label class="switch-row">
+              <span>目录浏览</span>
+              <span class="switch-ctl"><input type="checkbox" id="setDirBrowsing"><em>无默认文档时列出目录</em></span>
+            </label>
+            <label class="field"><span>默认文档（按顺序匹配）</span>
+              <div class="doc-list" id="docList"></div>
+              <div class="doc-add">
+                <input class="input" id="docAddInput" placeholder="如 index.html">
+                <button class="btn btn-ghost btn-sm" id="docAddBtn" type="button">添加</button>
+              </div>
+            </label>
+            <label class="field"><span>MIME 类型（每行：扩展名 类型）</span>
+              <textarea class="input" id="setMime" rows="4" placeholder="abc text/html"></textarea>
+              <button class="btn btn-ghost btn-sm" id="mimePresetBtn" type="button" style="margin-top:8px">填入常用类型</button>
+            </label>
+            <div class="field">
+              <span>访问日志（最近 60 条）</span>
+              <div class="log-box" id="logBox"><span class="muted small">正在加载…</span></div>
+              <button class="btn btn-ghost btn-sm" id="refreshLogsBtn" type="button" style="margin-top:8px">刷新日志</button>
+            </div>
+            <div class="settings-actions">
+              <button class="btn btn-primary" id="saveSettingsBtn" type="button">保存设置</button>
+              <button class="btn btn-ghost" id="closeSettingsBtn" type="button">关闭</button>
+            </div>
+            <p class="hint">示例：新增一行 <code>abc text/html</code> 后，访问 <code>demo.abc</code> 会按网页渲染。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <button class="ref-fab" id="refFab" type="button" title="HTML / CSS / JS 语法速查">
+    <span class="ref-fab-ico">&lt;/&gt;</span><span>语法帮助</span>
+  </button>
+  <aside class="ref-panel" id="refPanel" hidden>
+    <div class="ref-head" id="refHead">
+      <span class="ref-title">语法速查 · HTML / CSS / JS</span>
+      <div class="ref-head-actions">
+        <button class="ref-icon-btn" id="refCollapseBtn" type="button" title="收起">－</button>
+        <button class="ref-icon-btn" id="refCloseBtn" type="button" title="关闭">×</button>
+      </div>
+    </div>
+    <div class="ref-body" id="refBody">
+      <div class="ref-tabs" id="refTabs">
+        <button class="ref-tab active" type="button" data-ref-tab="html">HTML</button>
+        <button class="ref-tab" type="button" data-ref-tab="css">CSS</button>
+        <button class="ref-tab" type="button" data-ref-tab="js">JavaScript</button>
+      </div>
+      <input class="ref-search" id="refSearch" type="search" placeholder="搜索标签、属性、语法…">
+      <div class="ref-list" id="refList"></div>
+    </div>
+  </aside>
+
+  <input type="file" id="fileInput" multiple hidden>
+  <div class="toast-wrap"></div>
+
+  <script src="/assets/ace/ace.js"></script>
+  <script src="/assets/ace/ext-language_tools.js"></script>
+  <script src="/assets/ace/ext-searchbox.js"></script>
+  <script type="module" src="/assets/js/workspace.js"></script>
+</body>
+</html>

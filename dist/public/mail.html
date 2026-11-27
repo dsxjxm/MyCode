@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>局域网邮箱 — 局域网仿真实训教学平台</title>
+<link rel="stylesheet" href="/assets/css/app.css">
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Microsoft YaHei","PingFang SC",sans-serif; background:#f5f6fa; color:#333; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+
+/* 教师管理入口仅教师可见 */
+.mode-tab a.teacher-only { display:none; }
+body.is-teacher .mode-tab a.teacher-only { display:inline-block; }
+
+.layout { flex: 1; min-height: 0; display:flex; }
+
+/* 左侧文件夹栏 */
+.sidebar { width: 220px; background:#fff; border-right:1px solid #e0e4ea; display:flex; flex-direction:column; padding:16px 10px; overflow-y:auto; }
+.sidebar .compose-btn { background:#3d7fb5; color:#fff; border:none; padding:10px; border-radius:6px; font-size:14px; cursor:pointer; margin-bottom:14px; font-weight:600; }
+.sidebar .compose-btn:hover { background:#2c5f8a; }
+.sidebar .folder-list { display:flex; flex-direction:column; gap:2px; }
+.sidebar .folder { padding:9px 12px; border-radius:4px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-size:13px; color:#555; user-select:none; }
+.sidebar .folder:hover { background:#eef4fb; }
+.sidebar .folder.active { background:#3d7fb5; color:#fff; }
+.sidebar .folder .count { background:rgba(61,127,181,.2); color:#3d7fb5; padding:1px 7px; border-radius:10px; font-size:11px; font-weight:600; }
+.sidebar .folder.active .count { background:rgba(255,255,255,.3); color:#fff; }
+.sidebar .sidebar-footer { margin-top:auto; padding-top:12px; border-top:1px solid #eee; font-size:11px; color:#999; line-height:1.6; flex:none; }
+.sidebar .sidebar-footer .mail-addr { color:#3d7fb5; font-weight:600; word-break:break-all; }
+
+/* 中间邮件列表 */
+.mail-list { flex:1; background:#fff; border-right:1px solid #e0e4ea; display:flex; flex-direction:column; min-width:300px; }
+.mail-list .toolbar { padding:10px 14px; border-bottom:1px solid #eee; display:flex; gap:8px; align-items:center; }
+.mail-list .toolbar input[type=text] { flex:1; padding:6px 10px; border:1px solid #ddd; border-radius:4px; font-size:13px; }
+.mail-list .toolbar button { padding:6px 12px; border:1px solid #ddd; background:#fff; border-radius:4px; cursor:pointer; font-size:12px; }
+.mail-list .toolbar button:hover { background:#f0f4fa; border-color:#3d7fb5; color:#3d7fb5; }
+.mail-list table { width:100%; border-collapse:collapse; font-size:13px; }
+.mail-list th { text-align:left; padding:8px 10px; background:#fafbfd; border-bottom:1px solid #eee; font-weight:500; color:#777; font-size:12px; }
+.mail-list td { padding:9px 10px; border-bottom:1px solid #f0f2f5; }
+.mail-list tr.unread td { font-weight:600; color:#222; background:#f7fbff; }
+.mail-list tr:hover td { background:#eef4fb; }
+.mail-list tr.selected td { background:#d9e6f5 !important; }
+.mail-list .star { cursor:pointer; font-size:15px; }
+.mail-list .star.on { color:#f0a500; }
+.mail-list .star.off { color:#ccc; }
+.mail-list .empty { padding:40px; text-align:center; color:#aaa; }
+
+/* 右侧详情 */
+.mail-detail { flex:1; background:#fff; display:flex; flex-direction:column; overflow:auto; }
+.mail-detail .empty-detail { display:flex; align-items:center; justify-content:center; height:100%; color:#bbb; font-size:14px; }
+.mail-detail .detail-header { padding:18px 24px; border-bottom:1px solid #eee; }
+.mail-detail .detail-header .subject { font-size:18px; font-weight:600; margin-bottom:10px; }
+.mail-detail .detail-header .meta { display:flex; align-items:center; gap:12px; font-size:12px; color:#888; margin-bottom:4px; }
+.mail-detail .detail-header .meta .sender { font-size:13px; font-weight:500; color:#444; }
+.mail-detail .detail-actions { padding:10px 24px; border-bottom:1px solid #f0f0f0; display:flex; gap:8px; }
+.mail-detail .detail-actions button { padding:6px 14px; border:1px solid #ddd; background:#fff; border-radius:4px; cursor:pointer; font-size:12px; }
+.mail-detail .detail-actions button:hover { border-color:#3d7fb5; color:#3d7fb5; }
+.mail-detail .detail-body { padding:18px 24px; font-size:14px; line-height:1.8; white-space:pre-wrap; word-wrap:break-word; }
+.mail-detail .attachments { padding:12px 24px; border-top:1px dashed #e0e0e0; background:#fafbfd; }
+.mail-detail .attachments h4 { margin:0 0 8px; font-size:12px; color:#888; }
+.mail-detail .attachments .att-item { padding:4px 8px; font-size:12px; color:#3d7fb5; }
+
+/* SMTP 协议面板 */
+.proto-panel { border-top:1px solid #ddd; background:#1e1e2e; color:#cdd6f4; font-family:"Cascadia Mono","Consolas",monospace; font-size:12px; max-height:220px; overflow:auto; }
+.proto-panel .proto-header { background:#313244; padding:6px 12px; display:flex; justify-content:space-between; align-items:center; }
+.proto-panel .proto-header .title { font-size:12px; font-weight:600; color:#f9e2af; }
+.proto-panel .proto-header button { background:none; border:none; color:#89b4fa; cursor:pointer; font-size:12px; }
+.proto-panel .proto-header button:hover { color:#f38ba8; }
+.proto-panel .proto-content { padding:8px 14px; }
+.proto-panel .line { padding:1px 0; white-space:pre-wrap; }
+.proto-panel .line.client { color:#89b4fa; }
+.proto-panel .line.server { color:#a6e3a1; }
+.proto-panel .line .ts { color:#6c7086; margin-right:8px; font-size:10px; }
+.proto-panel .line .null-data { color:#f38ba8; font-style:italic; }
+
+/* 写邮件弹窗 */
+.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.4); z-index:200; display:none; align-items:center; justify-content:center; }
+.modal-overlay.show { display:flex; }
+.compose-modal { background:#fff; width:620px; max-width:90vw; border-radius:8px; box-shadow:0 8px 32px rgba(0,0,0,.2); overflow:hidden; display:flex; flex-direction:column; }
+.compose-modal .modal-header { padding:12px 16px; background:#3d7fb5; color:#fff; display:flex; justify-content:space-between; align-items:center; }
+.compose-modal .modal-header h3 { margin:0; font-size:15px; }
+.compose-modal .modal-header .close { background:none; border:none; color:#fff; font-size:20px; cursor:pointer; }
+.compose-modal .modal-body { padding:16px; display:flex; flex-direction:column; gap:10px; max-height:70vh; overflow:auto; }
+.compose-modal .form-row { display:flex; gap:6px; align-items:center; }
+.compose-modal .form-row label { width:56px; font-size:13px; color:#666; }
+.compose-modal .form-row input { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:4px; font-size:13px; }
+.compose-modal .cc-row input { background:#fafbfd; }
+.compose-modal .form-row .hint { font-size:11px; color:#aaa; }
+.compose-modal textarea { width:100%; min-height:200px; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:13px; font-family:inherit; resize:vertical; line-height:1.6; }
+.compose-modal .modal-footer { padding:12px 16px; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:8px; }
+.compose-modal .modal-footer button { padding:8px 18px; border-radius:4px; cursor:pointer; font-size:13px; border:1px solid #ddd; background:#fff; }
+.compose-modal .modal-footer .btn-send { background:#3d7fb5; color:#fff; border-color:#3d7fb5; }
+.compose-modal .modal-footer .btn-send:hover { background:#2c5f8a; }
+.compose-modal .modal-footer .btn-draft:hover { border-color:#3d7fb5; color:#3d7fb5; }
+.compose-modal .modal-footer .btn-sched { color:#e6882d; border-color:#f0c48a; background:#fff8ef; }
+.compose-modal .modal-footer .btn-sched:hover { background:#ffeacf; }
+
+/* 富文本编辑器 */
+.rt-toolbar { display:flex; flex-wrap:wrap; gap:2px; padding:6px; border:1px solid #ddd; border-bottom:none; border-radius:4px 4px 0 0; background:#fafbfd; }
+.rt-toolbar button { min-width:30px; height:28px; border:1px solid transparent; background:#fff; border-radius:3px; cursor:pointer; font-size:13px; padding:0 7px; color:#444; }
+.rt-toolbar button:hover { background:#eef4fb; border-color:#cfe0f0; }
+.rt-toolbar .sep { width:1px; background:#e0e0e0; margin:3px 4px; }
+.rt-editor { min-height:180px; max-height:340px; overflow:auto; padding:12px; border:1px solid #ddd; border-radius:0 0 4px 4px; font-size:14px; line-height:1.7; background:#fff; outline:none; }
+.rt-editor:focus { border-color:#3d7fb5; }
+.rt-editor:empty:before { content:'在这里输入邮件正文...'; color:#bbb; }
+
+/* 附件 */
+.attach-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12px; }
+.attach-btn { display:inline-block; padding:6px 12px; border:1px solid #ddd; border-radius:4px; cursor:pointer; color:#3d7fb5; background:#fff; }
+.attach-btn:hover { background:#eef4fb; }
+.attach-hint { color:#aaa; font-size:11px; }
+.attach-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.attach-chip { display:inline-flex; align-items:center; gap:6px; background:#eef4fb; border:1px solid #cfe0f0; border-radius:14px; padding:3px 10px; font-size:12px; color:#2c5f8a; }
+.attach-chip .rm { cursor:pointer; color:#e74c3c; font-weight:700; }
+
+/* 定时发送行 */
+.sched-row { display:flex; align-items:center; gap:8px; font-size:12px; color:#666; padding:4px 0; }
+.sched-row input { padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:12px; }
+
+/* 详情正文内 HTML 渲染 */
+.detail-body iframe { width:100%; border:none; min-height:200px; }
+.detail-attach-link { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; margin:0 8px 8px 0; background:#eef4fb; border:1px solid #cfe0f0; border-radius:4px; font-size:12px; color:#2c5f8a; text-decoration:none; }
+.detail-attach-link:hover { background:#dcebf9; }
+
+/* 账号工具按钮（侧栏） */
+.account-tools { margin-top:14px; display:flex; flex-direction:column; gap:4px; }
+.account-tools button { text-align:left; padding:8px 12px; border:none; background:#f7f9fc; border-radius:4px; cursor:pointer; font-size:12px; color:#555; }
+.account-tools button:hover { background:#eef4fb; color:#3d7fb5; }
+
+/* 教师管理面板 */
+.teacher-admin { display:none; }
+body.is-teacher .teacher-admin { display:flex; flex-direction:column; padding:16px; gap:12px; background:#fafbfd; }
+body.is-teacher .teacher-admin .admin-title { font-size:14px; font-weight:700; color:#3d7fb5; border-bottom:2px solid #3d7fb5; padding-bottom:6px; }
+body.is-teacher .teacher-admin .toggle-admin-btn { background:#ff9933; color:#fff; border:none; padding:8px; border-radius:4px; cursor:pointer; font-size:12px; }
+body.is-teacher .teacher-admin .toggle-admin-btn:hover { background:#e6882d; }
+body.is-teacher .sidebar { padding-bottom:8px; }
+
+/* Toast */
+.toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#333; color:#fff; padding:10px 20px; border-radius:6px; font-size:13px; z-index:300; display:none; box-shadow:0 4px 16px rgba(0,0,0,.2); }
+.toast.show { display:block; }
+.toast.error { background:#e74c3c; }
+.toast.success { background:#27ae60; }
+
+/* 管理模态（服务器配置 / 账号管理）*/
+.admin-modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.4); z-index:200; align-items:center; justify-content:center; }
+.admin-modal.show { display:flex; }
+.admin-modal .panel { background:#fff; width:720px; max-width:92vw; max-height:85vh; border-radius:8px; display:flex; flex-direction:column; overflow:hidden; }
+.admin-modal .panel header { padding:12px 16px; background:#2c5f8a; color:#fff; display:flex; justify-content:space-between; align-items:center; }
+.admin-modal .panel header h3 { margin:0; font-size:15px; }
+.admin-modal .panel header .close { background:none; border:none; color:#fff; font-size:20px; cursor:pointer; }
+.admin-modal .panel .tabs { display:flex; border-bottom:1px solid #eee; }
+.admin-modal .panel .tabs .tab { padding:10px 20px; cursor:pointer; font-size:13px; border-bottom:2px solid transparent; color:#666; }
+.admin-modal .panel .tabs .tab.active { border-bottom-color:#3d7fb5; color:#3d7fb5; font-weight:600; }
+.admin-modal .panel .tab-content { padding:16px; overflow:auto; }
+.admin-modal .panel table { width:100%; border-collapse:collapse; font-size:12px; }
+.admin-modal .panel th, .admin-modal .panel td { padding:6px 8px; text-align:left; border-bottom:1px solid #eee; }
+.admin-modal .panel th { background:#f5f6fa; font-weight:500; color:#666; }
+.admin-modal .panel .row-form { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+.admin-modal .panel .row-form .form-group { display:flex; flex-direction:column; gap:4px; }
+.admin-modal .panel .row-form label { font-size:11px; color:#888; }
+.admin-modal .panel .row-form input { padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:12px; width:180px; }
+.admin-modal .panel .btn { padding:6px 14px; border:1px solid #ddd; background:#fff; border-radius:4px; cursor:pointer; font-size:12px; }
+.admin-modal .panel .btn-primary { background:#3d7fb5; color:#fff; border-color:#3d7fb5; }
+.admin-modal .panel .btn-danger { background:#e74c3c; color:#fff; border-color:#e74c3c; }
+.admin-modal .panel .btn-sm { padding:3px 10px; font-size:11px; }
+.admin-modal .panel .btn:hover { opacity:.85; }
+
+/* ===== 邮箱登录 / 注册门禁 ===== */
+.mail-gate { position:fixed; top:52px; left:0; right:0; bottom:0; background:linear-gradient(160deg,#eef3f9,#dde7f3);
+  display:none; align-items:center; justify-content:center; z-index:60; padding:20px; overflow:auto; }
+.mail-gate.show { display:flex; }
+body.mail-gated .layout { display:none; }
+.gate-card { width:470px; max-width:100%; background:#fff; border-radius:12px; box-shadow:0 12px 44px rgba(30,50,80,.18); padding:26px 28px; }
+.gate-card h2 { margin:0 0 4px; font-size:19px; color:#1f3a56; }
+.gate-card .sub { font-size:12px; color:#8a95a5; margin-bottom:16px; }
+.gate-tabs { display:flex; gap:6px; margin-bottom:16px; }
+.gate-tabs button { flex:1; padding:8px; border:1px solid #dbe2ea; background:#f7f9fc; border-radius:6px; cursor:pointer; font-size:13px; color:#5b6878; }
+.gate-tabs button.active { background:#3d7fb5; border-color:#3d7fb5; color:#fff; font-weight:600; }
+.gate-field { margin-bottom:12px; }
+.gate-field > label { display:block; font-size:12px; color:#5b6878; margin-bottom:5px; }
+.gate-field input[type=text], .gate-field input[type=password] { width:100%; padding:9px 10px; border:1px solid #d5dbe3; border-radius:6px; font-size:13px; }
+.gate-input-row { display:flex; align-items:center; gap:4px; }
+.gate-input-row .suffix { font-size:12px; color:#8a95a5; white-space:nowrap; }
+.gate-inline { display:flex; gap:8px; }
+.gate-inline input { flex:1; }
+.btn-sms-code { padding:0 12px; border:1px solid #3d7fb5; background:#fff; color:#3d7fb5; border-radius:6px; font-size:12px; cursor:pointer; white-space:nowrap; }
+.btn-sms-code:disabled { color:#9aa5b1; border-color:#d5dbe3; cursor:not-allowed; }
+.gate-submit { width:100%; padding:10px; border:none; border-radius:6px; background:#3d7fb5; color:#fff; font-size:14px; font-weight:600; cursor:pointer; margin-top:4px; }
+.gate-submit:hover { background:#2c5f8a; }
+.gate-msg { min-height:18px; font-size:12px; color:#c0392b; margin-top:8px; }
+.gate-tip { font-size:11px; color:#9aa5b1; line-height:1.7; margin-top:10px; }
+.gate-notice { background:#fdf6e3; border:1px solid #f3e3b3; color:#8a6d1f; font-size:12px; padding:8px 10px; border-radius:6px; margin-bottom:12px; }
+.captcha-row { display:flex; gap:8px; align-items:center; }
+.captcha-row canvas { border-radius:4px; border:1px solid #d5dbe3; cursor:pointer; flex:none; }
+/* 模拟手机短信弹窗 */
+.sms-pop { position:fixed; right:22px; bottom:22px; width:300px; background:#1f2a37; color:#fff; border-radius:10px;
+  box-shadow:0 10px 30px rgba(0,0,0,.3); padding:14px 16px; z-index:80; display:none; font-size:12.5px; }
+.sms-pop.show { display:block; animation:smspin .25s ease; }
+@keyframes smspin { from{transform:translateY(12px);opacity:0} to{transform:none;opacity:1} }
+.sms-pop .h { font-size:12px; color:#9fb3c8; margin-bottom:8px; }
+.sms-pop .code { font-size:26px; letter-spacing:6px; font-weight:700; color:#7fd1a0; margin:6px 0; }
+.sms-pop .f { display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#9fb3c8; }
+.sms-pop button { border:none; background:#3d7fb5; color:#fff; border-radius:4px; padding:4px 10px; font-size:11px; cursor:pointer; }
+body.is-teacher #mailLogoutBtn { display:none; }
+</style>
+</head>
+<body>
+
+<header class="topbar topbar-compact">
+  <div class="brand">
+    <span class="logo-badge small">LAN</span>
+    <span class="brand-name">局域网仿真实训教学平台</span>
+  </div>
+  <nav class="mode-tab">
+    <a href="/workspace.html">WWW 实训</a>
+    <a href="/terminal.html">FTP / Telnet</a>
+    <a href="/network.html">DNS / DHCP</a>
+    <a href="/mail.html" class="active">邮件服务器</a>
+    <a href="/admin.html" class="teacher-only">教师管理</a>
+  </nav>
+  <div class="topbar-right">
+    <span class="user-chip" id="userChip"></span>
+    <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">退出</button>
+  </div>
+</header>
+
+<!-- 邮箱登录 / 注册门禁（学生首次使用） -->
+<div class="mail-gate" id="mailGate">
+  <div class="gate-card">
+    <h2>📮 登录局域网邮箱</h2>
+    <div class="sub">完整流程：注册邮箱 → 登录 → 收/发邮件</div>
+    <div class="gate-tabs">
+      <button type="button" id="gateTabLogin" onclick="switchAuthTab('login')">邮箱登录</button>
+      <button type="button" id="gateTabReg" onclick="switchAuthTab('register')">注册邮箱</button>
+    </div>
+
+    <form id="gateLoginForm" onsubmit="return submitMailLogin(event)">
+      <div class="gate-notice" id="gateLoginNotice" style="display:none;"></div>
+      <div class="gate-field">
+        <label>邮箱账号</label>
+        <div class="gate-input-row">
+          <input type="text" id="lgAlias" placeholder="如 20250101" autocomplete="username">
+          <span class="suffix">@<span class="gate-domain">example.local</span></span>
+        </div>
+      </div>
+      <div class="gate-field">
+        <label>登录方式</label>
+        <div style="display:flex;gap:14px;font-size:12.5px;color:#5b6878;">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="radio" name="lgMethod" value="password" checked onchange="switchLoginMethod()"> 密码登录
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="radio" name="lgMethod" value="sms" onchange="switchLoginMethod()"> 短信验证码
+          </label>
+        </div>
+      </div>
+      <div class="gate-field" id="lgPwdField">
+        <label>密码</label>
+        <input type="password" id="lgPwd" placeholder="请输入邮箱密码" autocomplete="current-password">
+      </div>
+      <div id="lgSmsField" style="display:none;">
+        <div class="gate-field">
+          <label>手机号（模拟）</label>
+          <input type="text" id="lgPhone" placeholder="注册时填写的手机号" maxlength="11">
+        </div>
+        <div class="gate-field">
+          <label>短信验证码</label>
+          <div class="gate-inline">
+            <input type="text" id="lgCode" placeholder="6 位验证码" maxlength="6">
+            <button type="button" class="btn-sms-code" id="lgSmsBtn" onclick="sendSmsCode('login')">获取验证码</button>
+          </div>
+        </div>
+      </div>
+      <button type="submit" class="gate-submit">登录邮箱</button>
+      <div class="gate-msg" id="lgMsg"></div>
+      <div class="gate-tip">教师预置账号初始密码为 123456；也可选择短信验证码登录。</div>
+    </form>
+
+    <form id="gateRegForm" onsubmit="return submitMailRegister(event)" style="display:none;">
+      <div class="gate-notice" id="gateRegNotice" style="display:none;"></div>
+      <div class="gate-field">
+        <label>邮箱账号（别名）</label>
+        <div class="gate-input-row">
+          <input type="text" id="rgAlias" placeholder="3-18 位字母/数字/._-" maxlength="18" autocomplete="username">
+          <span class="suffix">@<span class="gate-domain">example.local</span></span>
+        </div>
+      </div>
+      <div class="gate-field">
+        <label>昵称（作为发件人显示名）</label>
+        <input type="text" id="rgName" placeholder="如 张三" maxlength="12">
+      </div>
+      <div class="gate-field">
+        <label>手机号（模拟，无需真实号码）</label>
+        <input type="text" id="rgPhone" placeholder="11 位手机号，如 13800000000" maxlength="11">
+      </div>
+      <div class="gate-field">
+        <label>图形验证码</label>
+        <div class="captcha-row">
+          <input type="text" id="rgCaptcha" placeholder="不区分大小写" maxlength="4">
+          <canvas id="captchaCanvas" width="96" height="34" onclick="drawCaptcha()" title="点击刷新"></canvas>
+        </div>
+      </div>
+      <div class="gate-field">
+        <label>短信验证码</label>
+        <div class="gate-inline">
+          <input type="text" id="rgCode" placeholder="6 位验证码" maxlength="6">
+          <button type="button" class="btn-sms-code" id="rgSmsBtn" onclick="sendSmsCode('register')">获取验证码</button>
+        </div>
+      </div>
+      <div class="gate-field">
+        <label>密码（至少 6 位）</label>
+        <input type="password" id="rgPwd" placeholder="设置登录密码" autocomplete="new-password">
+      </div>
+      <div class="gate-field">
+        <label>确认密码</label>
+        <input type="password" id="rgPwd2" placeholder="再次输入密码" autocomplete="new-password">
+      </div>
+      <button type="submit" class="gate-submit">注册并登录</button>
+      <div class="gate-msg" id="rgMsg"></div>
+      <div class="gate-tip">邮箱绑定你的学生账号，每人限一个；注册成功后可立即收发邮件。</div>
+    </form>
+  </div>
+</div>
+
+<!-- 模拟手机短信弹窗 -->
+<div class="sms-pop" id="smsPop">
+  <div class="h">📶 新短信 · 局域网邮箱</div>
+  <div>您正在<span id="smsPurposeText">注册邮箱</span>，验证码：</div>
+  <div class="code" id="smsCode">------</div>
+  <div class="f">
+    <span id="smsCountdown">30 秒后关闭</span>
+    <button type="button" onclick="fillSmsCode()">一键填入</button>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- 左侧文件夹栏 -->
+  <div class="sidebar">
+    <button class="compose-btn" onclick="openCompose()">✉️ 写邮件</button>
+    <div class="folder-list">
+      <div class="folder active" data-folder="inbox" onclick="switchFolder('inbox')">
+        <span>📥 收件箱</span><span class="count" id="cnt-inbox">0</span>
+      </div>
+      <div class="folder" data-folder="sent" onclick="switchFolder('sent')">
+        <span>📤 已发送</span><span class="count" id="cnt-sent">0</span>
+      </div>
+      <div class="folder" data-folder="draft" onclick="switchFolder('draft')">
+        <span>📝 草稿箱</span><span class="count" id="cnt-draft">0</span>
+      </div>
+      <div class="folder" data-folder="junk" onclick="switchFolder('junk')">
+        <span>⚠️ 垃圾邮件</span><span class="count" id="cnt-junk">0</span>
+      </div>
+      <div class="folder" data-folder="trash" onclick="switchFolder('trash')">
+        <span>🗑️ 已删除</span><span class="count" id="cnt-trash">0</span>
+      </div>
+    </div>
+
+    <!-- 账号工具 -->
+    <div class="account-tools">
+      <button onclick="openAddressBook()">📇 通讯簿</button>
+      <button onclick="mailLogout()" id="mailLogoutBtn">🚪 退出邮箱</button>
+      <button onclick="openSched()">⏰ 定时发送</button>
+      <button onclick="openBlacklist()">🚫 黑名单</button>
+    </div>
+
+    <!-- 教师管理入口 -->
+    <div class="teacher-admin">
+      <div class="admin-title">🛠️ 教师管理</div>
+      <button class="toggle-admin-btn" onclick="openAdmin('config')">⚙️ 服务器配置</button>
+      <button class="toggle-admin-btn" onclick="openAdmin('accounts')">👥 账号管理</button>
+      <button class="toggle-admin-btn" onclick="openAdmin('pop3')">🔌 查看 POP3</button>
+      <button class="toggle-admin-btn" onclick="openAliasModal()">📧 邮箱别名注册</button>
+    </div>
+
+    <div class="sidebar-footer">
+      你的邮箱地址：<br>
+      <span class="mail-addr" id="myAddr">—</span>
+    </div>
+  </div>
+
+  <!-- 中间邮件列表 -->
+  <div class="mail-list">
+    <div class="toolbar">
+      <input type="text" id="searchInput" placeholder="🔍 搜索邮件（主题/发件人/内容）" oninput="debounce(doSearch,300)()">
+      <button onclick="refresh()">🔄 刷新</button>
+      <button onclick="markAllRead()">✅ 全部已读</button>
+      <button onclick="emptyTrash()" id="emptyTrashBtn" style="display:none;color:#e74c3c;">🗑️ 清空回收站</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px;"></th>
+          <th style="width:30px;">★</th>
+          <th style="width:140px;">发件人</th>
+          <th>主题</th>
+          <th style="width:100px;">时间</th>
+        </tr>
+      </thead>
+      <tbody id="mailTbody"></tbody>
+    </table>
+    <div class="empty" id="emptyHint" style="display:none;">📭 暂无邮件</div>
+  </div>
+
+  <!-- 右侧详情 -->
+  <div class="mail-detail" id="mailDetail">
+    <div class="empty-detail">⬅️ 从左侧选择一封邮件查看详情</div>
+  </div>
+</div>
+
+<!-- 写邮件弹窗 -->
+<div class="modal-overlay" id="composeModal">
+  <div class="compose-modal">
+    <div class="modal-header">
+      <h3 id="composeTitle">✉️ 写邮件</h3>
+      <button class="close" onclick="closeCompose()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row"><label>收件人</label><input type="text" id="toInput" placeholder="张三@example.local" autocomplete="off"></div>
+      <div class="form-row"><label>抄送</label><input type="text" id="ccInput" class="cc-row" placeholder="选填，多地址用逗号分隔" autocomplete="off"></div>
+      <div class="form-row"><label>主题</label><input type="text" id="subjectInput" placeholder="请输入主题"></div>
+      <div class="rt-toolbar" id="rtToolbar">
+        <button type="button" data-cmd="bold" title="加粗"><b>B</b></button>
+        <button type="button" data-cmd="italic" title="斜体"><i>I</i></button>
+        <button type="button" data-cmd="underline" title="下划线"><u>U</u></button>
+        <button type="button" data-cmd="strikeThrough" title="删除线"><s>S</s></button>
+        <span class="sep"></span>
+        <button type="button" data-cmd="insertUnorderedList" title="无序列表">•≡</button>
+        <button type="button" data-cmd="insertOrderedList" title="有序列表">1.</button>
+        <span class="sep"></span>
+        <button type="button" data-cmd="foreColor" data-value="#e74c3c" title="红色文字" style="color:#e74c3c;">A</button>
+        <button type="button" data-cmd="foreColor" data-value="#2c5f8a" title="蓝色文字" style="color:#2c5f8a;">A</button>
+        <button type="button" data-cmd="hiliteColor" data-value="#fff3a0" title="高亮">🖍</button>
+        <span class="sep"></span>
+        <button type="button" data-cmd="createLink" title="插入链接">🔗</button>
+        <button type="button" data-cmd="removeFormat" title="清除格式">⌫</button>
+      </div>
+      <div class="rt-editor" id="bodyEditor" contenteditable="true"></div>
+      <div class="attach-bar">
+        <label class="attach-btn">📎 添加附件<input type="file" id="attachInput" multiple hidden></label>
+        <span class="attach-hint" id="attachHint">最多 5 个，单个 ≤ 10MB</span>
+        <div class="attach-chips" id="attachChips"></div>
+      </div>
+      <div class="sched-row" id="schedRow" style="display:none;">
+        <label>定时发送时间：</label><input type="datetime-local" id="schedTime">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sched" id="schedToggleBtn" onclick="toggleSched()">⏰ 定时发送</button>
+      <button class="btn-sched" id="schedConfirmBtn" style="display:none;" onclick="scheduleMail()">✅ 确认定时</button>
+      <button class="btn-draft" onclick="saveDraft()">💾 存草稿</button>
+      <button class="btn-send" onclick="sendMail()">📤 发送</button>
+    </div>
+  </div>
+</div>
+
+<!-- 教师管理弹窗 -->
+<div class="admin-modal" id="adminModal">
+  <div class="panel">
+    <header>
+      <h3 id="adminTitle">—</h3>
+      <button class="close" onclick="closeAdmin()">×</button>
+    </header>
+    <div class="tabs" id="adminTabs"></div>
+    <div class="tab-content" id="adminContent"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 定时发送任务弹窗 -->
+<div class="admin-modal" id="schedModal">
+  <div class="panel" style="width:640px;">
+    <header>
+      <h3>⏰ 定时发送任务</h3>
+      <button class="close" onclick="closeSched()">×</button>
+    </header>
+    <div class="tab-content" id="schedContent"></div>
+  </div>
+</div>
+
+<!-- 黑名单弹窗 -->
+<div class="admin-modal" id="blacklistModal">
+  <div class="panel" style="width:560px;">
+    <header>
+      <h3>🚫 黑名单（拒收这些发件人）</h3>
+      <button class="close" onclick="closeBlacklist()">×</button>
+    </header>
+    <div class="tab-content" id="blacklistContent"></div>
+  </div>
+</div>
+
+<!-- 教师邮箱别名注册弹窗 -->
+<div class="admin-modal" id="aliasModal">
+  <div class="panel" style="width:520px;">
+    <header>
+      <h3>📧 教师邮箱别名注册</h3>
+      <button class="close" onclick="closeAliasModal()">×</button>
+    </header>
+    <div class="tab-content">
+      <div class="gate-notice" style="display:block;">教师邮箱与学生一样使用本地域名，可自定义别名，例如 wanglaoshi@example.local。</div>
+      <div class="gate-field">
+        <label>当前邮箱</label>
+        <div style="font-size:13px;color:#2c5f8a;font-weight:600;" id="aliasCurrent">—</div>
+      </div>
+      <div class="gate-field">
+        <label>新别名</label>
+        <div class="gate-input-row">
+          <input type="text" id="aliasInput" placeholder="3-18 位字母/数字/._-" maxlength="18">
+          <span class="suffix">@<span class="gate-domain">example.local</span></span>
+        </div>
+      </div>
+      <div class="gate-field">
+        <label>昵称（发件人显示名）</label>
+        <input type="text" id="aliasName" placeholder="如 王老师" maxlength="12">
+      </div>
+      <div class="gate-field">
+        <label>新密码（留空则不修改）</label>
+        <input type="password" id="aliasPwd" placeholder="至少 6 位，可留空" autocomplete="new-password">
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px;">
+        <button class="btn" type="button" onclick="closeAliasModal()">取消</button>
+        <button class="btn btn-primary" type="button" onclick="submitTeacherAlias()">保存别名</button>
+      </div>
+      <div class="gate-msg" id="aliasMsg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 通讯簿弹窗 -->
+<div class="admin-modal" id="bookModal">
+  <div class="panel" style="width:700px;">
+    <header>
+      <h3>📇 通讯簿</h3>
+      <button class="close" onclick="closeAddressBook()">×</button>
+    </header>
+    <div class="tab-content">
+      <input type="text" id="bookSearch" placeholder="搜索姓名 / 学号 / 邮箱" style="width:100%;padding:8px 10px;border:1px solid #d5dbe3;border-radius:4px;margin-bottom:10px;box-sizing:border-box;">
+      <div id="bookList" style="max-height:430px;overflow:auto;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/js/common.js"></script>
+<script src="/assets/js/mail.js"></script>
+</body>
+</html>

@@ -175,4 +175,27 @@ Windows 7 无法运行 Node 14 及以上版本（会报 `无法定位程序输�
 - 要求：Windows 7 **SP1** / Windows 8 / 8.1；建议装齐补丁，至少 KB2999226（UCRT）、KB4474419 / KB4490628（SHA-2）
 - 浏览器：Chrome / Edge 最高 109 版（Win7、Win8.1），或 360 极速浏览器、Firefox 115 ESR
 - 使用：解压后双击 `启动.bat`，访问 `http://localhost:3000`；数据保存在 `data\`（由启动脚本指定 `DATA_DIR`）
+- `sql.js` 固定为 `1.12.0`（1.13 及以上的 wasm 在 Node 12 下会报 `wasm function signature contains illegal type`）
+
+---
+
+## 九、并发与性能（60 人班级）
+
+软件侧的三个瓶颈已针对性优化：
+
+1. **登录密码校验改为异步**：`verifyPasswordAsync` 用 `crypto.scrypt` 回调版走 libuv 线程池，多人同时登录不再串行卡住事件循环；`UV_THREADPOOL_SIZE=8`（启动脚本已设置）
+2. **数据库落盘改为合并写**：sql.js 是内存库，原先每次写都整库导出并覆盖文件；现在 250ms 内的多次写合并为一次落盘（退出/中断前强制 flush，最多丢 250ms 写入），并发写不再互相排队
+3. **HTTP 长连接调优**：`keepAliveTimeout=65s`、`headersTimeout=66s`，避免局域网浏览器复用连接时出现 `ECONNRESET`
+
+压测脚本：`scripts/loadtest.mjs`（零依赖，兼容 Node 12+）
+
+```bash
+node scripts/loadtest.mjs --base http://127.0.0.1:3000 \
+  --accounts 20250101,20250102,20250103 \
+  --stages 20:30,40:30,60:30 --think 1000-2500 --write 30
+```
+
+参数：`--stages 并发:秒`、`--think 最小-最大毫秒`、`--write 写占比%`、`--pid`/`--db`（Linux 下统计内存与库大小）。
+
+建议课堂开场分批登录（30+30，间隔 1~2 分钟）；Windows 上把程序目录与 `data` 加入 Defender 排除项、关闭磁盘索引、用 SSD，可明显降低写库与文件操作延迟。
 
