@@ -128,6 +128,8 @@ function requestOnce(path, opts, fresh) {
 }
 
 let retries = 0;
+// 登录接口在新版中可能因并发超阈值返回 202（排队），需按 retryAfterMs 重试
+let queuedRetries = 0;
 // 长连接偶发被服务端关闭会出现 ECONNRESET；对幂等的 GET 与登录换新连接重试，
 // 写操作（保存/发邮件）不重试，避免重复提交影响结果。
 function request(path, opts, attempt) {
@@ -143,6 +145,36 @@ function request(path, opts, attempt) {
     }
     return res;
   });
+}
+
+function parseRetryMs(res, fallback) {
+  try {
+    const body = JSON.parse(res.text || '{}');
+    if (body && body.retryAfterMs) {
+      const n = Number(body.retryAfterMs);
+      if (n > 0) return n;
+    }
+  } catch (err) {
+    /* ignore */
+  }
+  return fallback;
+}
+
+// 登录（平台 / 邮箱）遇到 202 排队时自动重试，直到拿到非 202 结果或超时
+async function loginThroughQueue(path, opts, startedAt) {
+  startedAt = startedAt || Date.now();
+  for (;;) {
+    const res = await request(path, opts);
+    if (res.status !== 202) return res;
+    queuedRetries += 1;
+    if (Date.now() - startedAt > 60000) {
+      res.ok = false;
+      res.error = '排队超时(202)';
+      return res;
+    }
+    const wait = Math.min(3000, Math.max(250, parseRetryMs(res, 600)));
+    await sleep(wait + Math.floor(Math.random() * 150));
+  }
 }
 
 function parseSid(setCookie) {
@@ -173,16 +205,20 @@ function record(stats, action, res) {
 
 async function worker(id, deadline, stats) {
   const acct = ACCOUNTS[id % ACCOUNTS.length];
-  const login = await request('/api/auth/login', {
+  const login = await loginThroughQueue('/api/auth/login', {
     method: 'POST',
     body: { username: acct.username, password: acct.password }
   });
+  if (login.ok && !parseSid(login.setCookie)) {
+    login.ok = false;
+    login.error = '未获取到会话 Cookie';
+  }
   record(stats, 'login', login);
   if (!login.ok) return;
   const cookie = parseSid(login.setCookie);
 
   let mailToken = '';
-  const mailLogin = await request('/api/mail/login', {
+  const mailLogin = await loginThroughQueue('/api/mail/login', {
     method: 'POST',
     cookie: cookie,
     body: { address: acct.username + '@' + DOMAIN, password: acct.password }
@@ -287,7 +323,7 @@ async function main() {
     }
     await sleep(1000);
   }
-  console.log('\n压测结束，网络层重试 ' + retries + ' 次（ECONNRESET 等，已自动换新连接）');
+  console.log('\n压测结束，网络层重试 ' + retries + ' 次（ECONNRESET 等，已自动换新连接），登录排队重试 ' + queuedRetries + ' 次（202）');
 }
 
 main().catch(function (err) {

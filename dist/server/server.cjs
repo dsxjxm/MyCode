@@ -22725,14 +22725,14 @@ var require_etag = __commonJS({
   "node_modules/etag/index.js"(exports2, module2) {
     "use strict";
     module2.exports = etag;
-    var crypto5 = require("crypto");
+    var crypto6 = require("crypto");
     var Stats2 = require("fs").Stats;
     var toString = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash = crypto5.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash = crypto6.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash + '"';
     }
@@ -25641,11 +25641,11 @@ var require_request = __commonJS({
 // node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "node_modules/cookie-signature/index.js"(exports2) {
-    var crypto5 = require("crypto");
+    var crypto6 = require("crypto");
     exports2.sign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto5.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto6.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports2.unsign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Signed cookie string must be provided.");
@@ -25654,7 +25654,7 @@ var require_cookie_signature = __commonJS({
       return sha1(mac) == sha1(val) ? str : false;
     };
     function sha1(str) {
-      return crypto5.createHash("sha1").update(str).digest("hex");
+      return crypto6.createHash("sha1").update(str).digest("hex");
     }
   }
 });
@@ -36648,9 +36648,9 @@ var require_make_middleware = __commonJS({
 var require_disk = __commonJS({
   "node_modules/multer/storage/disk.js"(exports2, module2) {
     var fs13 = require("fs");
-    var os3 = require("os");
+    var os4 = require("os");
     var path13 = require("path");
-    var crypto5 = require("crypto");
+    var crypto6 = require("crypto");
     var pipeline = require("stream").pipeline;
     var MulterError = require_multer_error();
     var openStreams = /* @__PURE__ */ new WeakMap();
@@ -36662,12 +36662,12 @@ var require_disk = __commonJS({
       if (flush.onClosed) flush.onClosed();
     }
     function getFilename(req, file, cb) {
-      crypto5.randomBytes(16, function(err, raw) {
+      crypto6.randomBytes(16, function(err, raw) {
         cb(err, err ? void 0 : raw.toString("hex"));
       });
     }
     function getDestination(req, file, cb) {
-      cb(null, os3.tmpdir());
+      cb(null, os4.tmpdir());
     }
     function DiskStorage(opts) {
       opts = opts || {};
@@ -39855,10 +39855,10 @@ var require_async = __commonJS({
           });
         };
       }
-      function detect(coll, iteratee, callback) {
+      function detect2(coll, iteratee, callback) {
         return _createTester((bool) => bool, (res, item) => item)(eachOf$1, coll, iteratee, callback);
       }
-      var detect$1 = awaitify(detect, 3);
+      var detect$1 = awaitify(detect2, 3);
       function detectLimit(coll, limit, iteratee, callback) {
         return _createTester((bool) => bool, (res, item) => item)(eachOfLimit$2(limit), coll, iteratee, callback);
       }
@@ -48951,7 +48951,7 @@ var require_headers = __commonJS({
     function isGNU(buf) {
       return b4a.equals(GNU_MAGIC, buf.subarray(MAGIC_OFFSET, MAGIC_OFFSET + 6)) && b4a.equals(GNU_VER, buf.subarray(VERSION_OFFSET, VERSION_OFFSET + 2));
     }
-    function clamp(index2, len, defaultValue) {
+    function clamp2(index2, len, defaultValue) {
       if (typeof index2 !== "number") return defaultValue;
       index2 = ~~index2;
       if (index2 >= len) return len;
@@ -49070,7 +49070,7 @@ var require_headers = __commonJS({
         return parse256(val);
       } else {
         while (offset < val.length && val[offset] === 32) offset++;
-        const end = clamp(indexOf(val, 32, offset, val.length), val.length, val.length);
+        const end = clamp2(indexOf(val, 32, offset, val.length), val.length, val.length);
         while (offset < end && val[offset] === 0) offset++;
         if (end === offset) return 0;
         return parseInt(b4a.toString(val.subarray(offset, end)), 8);
@@ -60340,9 +60340,9 @@ var require_xlsx = __commonJS({
         cell.isst = blob.read_shift(4);
         return cell;
       }
-      function write_LabelSst(R, C, v, os3) {
+      function write_LabelSst(R, C, v, os4) {
         var o = new_buf(10);
-        write_XLSCell(R, C, os3, o);
+        write_XLSCell(R, C, os4, o);
         o.write_shift(4, v);
         return o;
       }
@@ -60355,10 +60355,10 @@ var require_xlsx = __commonJS({
         cell.val = str;
         return cell;
       }
-      function write_Label(R, C, v, os3, opts) {
+      function write_Label(R, C, v, os4, opts) {
         var b8 = !opts || opts.biff == 8;
         var o = new_buf(6 + 2 + +b8 + (1 + b8) * v.length);
-        write_XLSCell(R, C, os3, o);
+        write_XLSCell(R, C, os4, o);
         o.write_shift(2, v.length);
         if (b8) o.write_shift(1, 1);
         o.write_shift((1 + b8) * v.length, v, b8 ? "utf16le" : "sbcs");
@@ -60512,9 +60512,9 @@ var require_xlsx = __commonJS({
         cell.t = val === true || val === false ? "b" : "e";
         return cell;
       }
-      function write_BoolErr(R, C, v, os3, opts, t) {
+      function write_BoolErr(R, C, v, os4, opts, t) {
         var o = new_buf(8);
-        write_XLSCell(R, C, os3, o);
+        write_XLSCell(R, C, os4, o);
         write_Bes(v, t, o);
         return o;
       }
@@ -60525,9 +60525,9 @@ var require_xlsx = __commonJS({
         cell.val = xnum;
         return cell;
       }
-      function write_Number(R, C, v, os3) {
+      function write_Number(R, C, v, os4) {
         var o = new_buf(14);
-        write_XLSCell(R, C, os3, o);
+        write_XLSCell(R, C, os4, o);
         write_Xnum(v, o);
         return o;
       }
@@ -67119,8 +67119,8 @@ var require_xlsx = __commonJS({
         var cbf = parse_XLSCellParsedFormula(blob, end - blob.l, opts);
         return { cell, val: val[0], formula: cbf, shared: flags >> 3 & 1, tt: val[1] };
       }
-      function write_Formula(cell, R, C, opts, os3) {
-        var o1 = write_XLSCell(R, C, os3);
+      function write_Formula(cell, R, C, opts, os4) {
+        var o1 = write_XLSCell(R, C, os4);
         var o2 = write_FormulaValue(cell.v);
         var o3 = new_buf(6);
         var flags = 1 | 32;
@@ -68699,8 +68699,8 @@ var require_xlsx = __commonJS({
             break;
         }
         var v = writetag("v", escapexml(vv)), o = { r: ref };
-        var os3 = get_cell_style(opts.cellXfs, cell, opts);
-        if (os3 !== 0) o.s = os3;
+        var os4 = get_cell_style(opts.cellXfs, cell, opts);
+        if (os4 !== 0) o.s = os4;
         switch (cell.t) {
           case "n":
             break;
@@ -72358,8 +72358,8 @@ var require_xlsx = __commonJS({
             p = escapexlml(cell.v || "");
             break;
         }
-        var os3 = get_cell_style(opts.cellXfs, cell, opts);
-        attr["ss:StyleID"] = "s" + (21 + os3);
+        var os4 = get_cell_style(opts.cellXfs, cell, opts);
+        attr["ss:StyleID"] = "s" + (21 + os4);
         attr["ss:Index"] = addr.c + 1;
         var _v = cell.v != null ? p : "";
         var m = cell.t == "z" ? "" : '<Data ss:Type="' + t + '">' + _v + "</Data>";
@@ -78188,31 +78188,31 @@ var require_xlsx = __commonJS({
         });
       }
       function write_ws_biff8_cell(ba, cell, R, C, opts) {
-        var os3 = 16 + get_cell_style(opts.cellXfs, cell, opts);
+        var os4 = 16 + get_cell_style(opts.cellXfs, cell, opts);
         if (cell.v == null && !cell.bf) {
-          write_biff_rec(ba, 513, write_XLSCell(R, C, os3));
+          write_biff_rec(ba, 513, write_XLSCell(R, C, os4));
           return;
         }
-        if (cell.bf) write_biff_rec(ba, 6, write_Formula(cell, R, C, opts, os3));
+        if (cell.bf) write_biff_rec(ba, 6, write_Formula(cell, R, C, opts, os4));
         else switch (cell.t) {
           case "d":
           case "n":
             var v = cell.t == "d" ? datenum(parseDate(cell.v)) : cell.v;
-            write_biff_rec(ba, 515, write_Number(R, C, v, os3, opts));
+            write_biff_rec(ba, 515, write_Number(R, C, v, os4, opts));
             break;
           case "b":
           case "e":
-            write_biff_rec(ba, 517, write_BoolErr(R, C, cell.v, os3, opts, cell.t));
+            write_biff_rec(ba, 517, write_BoolErr(R, C, cell.v, os4, opts, cell.t));
             break;
           case "s":
           case "str":
             if (opts.bookSST) {
               var isst = get_sst_id(opts.Strings, cell.v, opts.revStrings);
-              write_biff_rec(ba, 253, write_LabelSst(R, C, isst, os3, opts));
-            } else write_biff_rec(ba, 516, write_Label(R, C, (cell.v || "").slice(0, 255), os3, opts));
+              write_biff_rec(ba, 253, write_LabelSst(R, C, isst, os4, opts));
+            } else write_biff_rec(ba, 516, write_Label(R, C, (cell.v || "").slice(0, 255), os4, opts));
             break;
           default:
-            write_biff_rec(ba, 513, write_XLSCell(R, C, os3));
+            write_biff_rec(ba, 513, write_XLSCell(R, C, os4));
         }
       }
       function write_ws_biff8(idx, opts, wb) {
@@ -82323,7 +82323,7 @@ var require_xlsx = __commonJS({
 
 // server/index.js
 var import_node_http = __toESM(require("http"), 1);
-var import_node_os2 = __toESM(require("os"), 1);
+var import_node_os3 = __toESM(require("os"), 1);
 var import_node_path11 = __toESM(require("path"), 1);
 var import_express11 = __toESM(require_express2(), 1);
 
@@ -82630,13 +82630,107 @@ btn.addEventListener('click', () => {
   );
 }
 
+// server/services/systemProfile.js
+var import_node_os = __toESM(require("os"), 1);
+var import_node_crypto2 = __toESM(require("crypto"), 1);
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+function benchScrypt(samples) {
+  const salt = import_node_crypto2.default.randomBytes(16).toString("hex");
+  const times = [];
+  for (let i = 0; i < samples; i++) {
+    const t0 = process.hrtime();
+    try {
+      import_node_crypto2.default.scryptSync("benchmark-password", salt, 64);
+    } catch (_) {
+      return 120;
+    }
+    const diff = process.hrtime(t0);
+    times.push(diff[0] * 1e3 + diff[1] / 1e6);
+  }
+  times.sort((a, b) => a - b);
+  return Math.round(times[Math.floor(times.length / 2)]);
+}
+function positiveInt(value, fallback) {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? Math.floor(num) : fallback;
+}
+function detect() {
+  const cpus = import_node_os.default.cpus() || [];
+  const cores = cpus.length || 1;
+  const totalMem = import_node_os.default.totalmem();
+  const freeMem = import_node_os.default.freemem();
+  const cpuModel = String(cpus[0] && cpus[0].model || "Unknown").trim();
+  const memGB = Math.round(totalMem / 1024 / 1024 / 1024 * 10) / 10;
+  const freeMemGB = Math.round(freeMem / 1024 / 1024 / 1024 * 10) / 10;
+  const scryptMs = benchScrypt(2);
+  let tier;
+  let label;
+  if (cores <= 2 || memGB < 4 || scryptMs > 160) {
+    tier = "low";
+    label = "\u4F4E\u914D";
+  } else if (cores <= 4 || memGB < 8 || scryptMs > 100) {
+    tier = "standard";
+    label = "\u6807\u51C6";
+  } else {
+    tier = "high";
+    label = "\u9AD8\u6027\u80FD";
+  }
+  let loginConcurrency;
+  let uvThreadPoolSize;
+  let persistDebounceMs;
+  let slowThresholdMs;
+  let suggestedVus;
+  if (tier === "low") {
+    loginConcurrency = 2;
+    uvThreadPoolSize = 4;
+    persistDebounceMs = 400;
+    slowThresholdMs = 800;
+    suggestedVus = Math.max(10, cores * 10);
+  } else if (tier === "standard") {
+    loginConcurrency = 6;
+    uvThreadPoolSize = 6;
+    persistDebounceMs = 300;
+    slowThresholdMs = 500;
+    suggestedVus = Math.max(20, cores * 15);
+  } else {
+    loginConcurrency = 8;
+    uvThreadPoolSize = 8;
+    persistDebounceMs = 200;
+    slowThresholdMs = 300;
+    suggestedVus = Math.max(40, cores * 20);
+  }
+  loginConcurrency = clamp(loginConcurrency, 2, Math.max(2, cores * 2));
+  uvThreadPoolSize = clamp(Math.max(uvThreadPoolSize, loginConcurrency), 4, 16);
+  return {
+    tier,
+    label,
+    cpuModel,
+    cpuCores: cores,
+    totalMemGB: memGB,
+    freeMemGB,
+    platform: import_node_os.default.platform(),
+    arch: import_node_os.default.arch(),
+    nodeVersion: process.version,
+    scryptMs,
+    loginConcurrency: positiveInt(process.env.LOGIN_MAX_CONCURRENT, loginConcurrency),
+    uvThreadPoolSize: positiveInt(process.env.UV_THREADPOOL_SIZE, uvThreadPoolSize),
+    persistDebounceMs: positiveInt(process.env.DB_PERSIST_DEBOUNCE_MS, persistDebounceMs),
+    slowThresholdMs: positiveInt(process.env.METRICS_SLOW_MS, slowThresholdMs),
+    suggestedVus,
+    detectedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+var SYSTEM_PROFILE = detect();
+
 // server/db.js
 ensureDirs();
 var innerDb = null;
 function now() {
   return (/* @__PURE__ */ new Date()).toISOString();
 }
-var PERSIST_DEBOUNCE_MS = 250;
+var PERSIST_DEBOUNCE_MS = SYSTEM_PROFILE.persistDebounceMs;
 var persistTimer = null;
 var dirty = false;
 function flushDb() {
@@ -83079,7 +83173,7 @@ var dbReady = bootstrap().catch((err) => {
 });
 
 // server/auth.js
-var import_node_crypto2 = __toESM(require("crypto"), 1);
+var import_node_crypto3 = __toESM(require("crypto"), 1);
 var import_node_fs4 = __toESM(require("fs"), 1);
 var import_node_path3 = __toESM(require("path"), 1);
 var SESSION_TTL = 7 * 24 * 60 * 60 * 1e3;
@@ -83089,11 +83183,11 @@ var SECRET;
 if (import_node_fs4.default.existsSync(secretFile)) {
   SECRET = import_node_fs4.default.readFileSync(secretFile, "utf8").trim();
 } else {
-  SECRET = import_node_crypto2.default.randomBytes(32).toString("hex");
+  SECRET = import_node_crypto3.default.randomBytes(32).toString("hex");
   import_node_fs4.default.writeFileSync(secretFile, SECRET, { mode: 384 });
 }
 function createSession(role, userId) {
-  const token = import_node_crypto2.default.randomBytes(32).toString("hex");
+  const token = import_node_crypto3.default.randomBytes(32).toString("hex");
   const expiresAt = Date.now() + SESSION_TTL;
   db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(Date.now());
   db.prepare("INSERT INTO sessions (token, role, user_id, expires_at) VALUES (?, ?, ?, ?)").run(
@@ -83165,7 +83259,7 @@ function fromBase64Url(str) {
   return Buffer.from(b64, "base64");
 }
 function sign(data) {
-  return toBase64Url(import_node_crypto2.default.createHmac("sha256", SECRET).update(data).digest());
+  return toBase64Url(import_node_crypto3.default.createHmac("sha256", SECRET).update(data).digest());
 }
 function buildPreviewToken(studentId, ttl = 12 * 60 * 60 * 1e3) {
   const payload = toBase64Url(
@@ -83180,7 +83274,7 @@ function verifyPreviewToken(token) {
   const expected = sign(payload);
   const a = Buffer.from(signature);
   const b = Buffer.from(expected);
-  if (a.length !== b.length || !import_node_crypto2.default.timingSafeEqual(a, b)) return null;
+  if (a.length !== b.length || !import_node_crypto3.default.timingSafeEqual(a, b)) return null;
   try {
     const data = JSON.parse(fromBase64Url(payload).toString("utf8"));
     if (!data || data.exp < Date.now()) return null;
@@ -83194,12 +83288,12 @@ function verifyPreviewToken(token) {
 var import_express = __toESM(require_express2(), 1);
 
 // server/services/loginQueue.js
-function positiveInt(value, fallback) {
+function positiveInt2(value, fallback) {
   const num = Number(value);
   return Number.isFinite(num) && num > 0 ? Math.floor(num) : fallback;
 }
-var MAX_CONCURRENT = positiveInt(process.env.LOGIN_MAX_CONCURRENT, 6);
-var BASE_RETRY_MS = positiveInt(process.env.LOGIN_RETRY_BASE_MS, 400);
+var MAX_CONCURRENT = positiveInt2(process.env.LOGIN_MAX_CONCURRENT, SYSTEM_PROFILE.loginConcurrency);
+var BASE_RETRY_MS = positiveInt2(process.env.LOGIN_RETRY_BASE_MS, 400);
 var MAX_RETRY_MS = 3e3;
 var THROTTLE_WINDOW_MS = 2e3;
 var active = 0;
@@ -90135,12 +90229,12 @@ var network_default = router8;
 // server/routes/mail.js
 var import_express9 = __toESM(require_express2(), 1);
 var import_multer4 = __toESM(require_multer(), 1);
-var import_node_crypto4 = require("crypto");
+var import_node_crypto5 = require("crypto");
 
 // server/services/mailSim.js
 var import_node_fs9 = __toESM(require("fs"), 1);
 var import_node_path9 = __toESM(require("path"), 1);
-var import_node_crypto3 = __toESM(require("crypto"), 1);
+var import_node_crypto4 = __toESM(require("crypto"), 1);
 function parseEmailAddress(addr) {
   if (!addr || typeof addr !== "string") return null;
   const trimmed = addr.trim().replace(/^<|>$/g, "");
@@ -90485,7 +90579,7 @@ var MAX_ATTACH_COUNT = 5;
 var MAX_ATTACH_EACH = 10 * 1024 * 1024;
 function saveAttachment(buffer, originalName) {
   const safeName = import_node_path9.default.basename(originalName || "file").replace(/[\\/:*?"<>|]/g, "_").slice(0, 120);
-  const id = import_node_crypto3.default.randomBytes(16).toString("hex");
+  const id = import_node_crypto4.default.randomBytes(16).toString("hex");
   const stored = `${id}__${safeName}`;
   import_node_fs9.default.writeFileSync(import_node_path9.default.join(MAIL_ATTACH_DIR, stored), buffer);
   return {
@@ -90701,7 +90795,7 @@ function checkSmsCode({ target, purpose, code }) {
   return null;
 }
 function createMailSession(account, userId) {
-  const token = (0, import_node_crypto4.randomBytes)(24).toString("hex");
+  const token = (0, import_node_crypto5.randomBytes)(24).toString("hex");
   db.prepare("DELETE FROM mail_sessions WHERE expires_ms < ?").run(Date.now());
   db.prepare(
     "INSERT INTO mail_sessions (token, account_id, user_id, expires_ms, created_at) VALUES (?, ?, ?, ?, ?)"
@@ -91155,14 +91249,11 @@ var import_node_fs11 = __toESM(require("fs"), 1);
 var import_node_path10 = __toESM(require("path"), 1);
 
 // server/services/metrics.js
-var import_node_os = __toESM(require("os"), 1);
+var import_node_os2 = __toESM(require("os"), 1);
 var import_node_fs10 = __toESM(require("fs"), 1);
 var MAX_LATENCY_SAMPLES = 600;
 var MAX_SLOW = 60;
-var SLOW_THRESHOLD_MS = (() => {
-  const n = Number(process.env.METRICS_SLOW_MS);
-  return Number.isFinite(n) && n > 0 ? n : 500;
-})();
+var SLOW_THRESHOLD_MS = SYSTEM_PROFILE.slowThresholdMs;
 var ONLINE_WINDOW_MS = 3 * 60 * 1e3;
 var RPS_WINDOW_MS = 60 * 1e3;
 var startedAt = Date.now();
@@ -91174,7 +91265,7 @@ var totalRequests = 0;
 var errorRequests = 0;
 var lastCpu = sampleCpuTimes();
 function sampleCpuTimes() {
-  const cpus = import_node_os.default.cpus() || [];
+  const cpus = import_node_os2.default.cpus() || [];
   let idle = 0;
   let total = 0;
   for (const cpu of cpus) {
@@ -91295,8 +91386,8 @@ function metricsSnapshot() {
   pruneRequestTimes(nowMs);
   const online = Array.from(onlineMap.values()).sort((a, b) => b.lastSeen - a.lastSeen);
   const mem = process.memoryUsage();
-  const load = import_node_os.default.loadavg();
-  const cpus = import_node_os.default.cpus() || [];
+  const load = import_node_os2.default.loadavg();
+  const cpus = import_node_os2.default.cpus() || [];
   const latency = summarizeLatency();
   const rps = requestTimes.length / (RPS_WINDOW_MS / 1e3);
   return {
@@ -91333,13 +91424,31 @@ function metricsSnapshot() {
       load15: Math.round(load[2] * 100) / 100,
       memRss: mem.rss,
       memHeapUsed: mem.heapUsed,
-      memTotal: import_node_os.default.totalmem(),
-      memFree: import_node_os.default.freemem()
+      memTotal: import_node_os2.default.totalmem(),
+      memFree: import_node_os2.default.freemem()
     },
     db: {
       sizeBytes: dbSize()
     },
-    login: loginQueueStats()
+    login: loginQueueStats(),
+    env: {
+      tier: SYSTEM_PROFILE.tier,
+      label: SYSTEM_PROFILE.label,
+      cpuModel: SYSTEM_PROFILE.cpuModel,
+      cpuCores: SYSTEM_PROFILE.cpuCores,
+      totalMemGB: SYSTEM_PROFILE.totalMemGB,
+      freeMemGB: SYSTEM_PROFILE.freeMemGB,
+      platform: SYSTEM_PROFILE.platform,
+      arch: SYSTEM_PROFILE.arch,
+      nodeVersion: SYSTEM_PROFILE.nodeVersion,
+      scryptMs: SYSTEM_PROFILE.scryptMs,
+      loginConcurrency: SYSTEM_PROFILE.loginConcurrency,
+      uvThreadPoolSize: SYSTEM_PROFILE.uvThreadPoolSize,
+      persistDebounceMs: SYSTEM_PROFILE.persistDebounceMs,
+      slowThresholdMs: SYSTEM_PROFILE.slowThresholdMs,
+      suggestedVus: SYSTEM_PROFILE.suggestedVus,
+      detectedAt: SYSTEM_PROFILE.detectedAt
+    }
   };
 }
 
@@ -91477,12 +91586,14 @@ router10.delete("/archives/:name", (req, res) => {
 var admin_default = router10;
 
 // server/version.js
-var APP_VERSION = "0.3.0";
+var APP_VERSION = "0.3.1";
 var APP_BUILD = "2026-11-27";
 var APP_NAME = "\u5C40\u57DF\u7F51\u4EFF\u771F\u5B9E\u8BAD\u6559\u5B66\u5E73\u53F0";
 
 // server/index.js
-if (!process.env.UV_THREADPOOL_SIZE) process.env.UV_THREADPOOL_SIZE = "8";
+if (!process.env.UV_THREADPOOL_SIZE) {
+  process.env.UV_THREADPOOL_SIZE = String(SYSTEM_PROFILE.uvThreadPoolSize);
+}
 ensureDirs();
 var app = (0, import_express11.default)();
 app.disable("x-powered-by");
@@ -91572,7 +91683,7 @@ dbReady.then(() => {
   server.requestTimeout = 3e4;
   server.listen(PORT, HOST, () => {
     startMailScheduler();
-    const interfaces = import_node_os2.default.networkInterfaces();
+    const interfaces = import_node_os3.default.networkInterfaces();
     const addresses = Object.values(interfaces).flat().filter((item) => item && item.family === "IPv4" && !item.internal).map((item) => item.address);
     console.log("");
     console.log("  \u5C40\u57DF\u7F51\u4EFF\u771F\u5B9E\u8BAD\u6559\u5B66\u5E73\u53F0 \u5DF2\u542F\u52A8");
@@ -91580,6 +91691,12 @@ dbReady.then(() => {
     for (const address of addresses) {
       console.log(`  \u5C40\u57DF\u7F51\u8BBF\u95EE\uFF1Ahttp://${address}:${PORT}`);
     }
+    console.log(
+      `  \u73AF\u5883\u81EA\u68C0\uFF1A${SYSTEM_PROFILE.label}\u6863 \xB7 ${SYSTEM_PROFILE.cpuCores} \u6838 \xB7 ${SYSTEM_PROFILE.totalMemGB}GB \u5185\u5B58 \xB7 scrypt ${SYSTEM_PROFILE.scryptMs}ms`
+    );
+    console.log(
+      `  \u81EA\u52A8\u914D\u7F6E\uFF1A\u767B\u5F55\u5E76\u53D1 ${SYSTEM_PROFILE.loginConcurrency} \xB7 \u7EBF\u7A0B\u6C60 ${process.env.UV_THREADPOOL_SIZE} \xB7 \u5199\u76D8\u9632\u6296 ${SYSTEM_PROFILE.persistDebounceMs}ms \xB7 \u6162\u8BF7\u6C42\u9608\u503C ${SYSTEM_PROFILE.slowThresholdMs}ms`
+    );
     console.log("  \u6559\u5E08\u521D\u59CB\u8D26\u53F7\uFF1Aadmin / admin123");
     console.log("");
   });

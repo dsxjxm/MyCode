@@ -4,13 +4,11 @@ import os from 'node:os';
 import fs from 'node:fs';
 import { DB_FILE } from '../paths.js';
 import { loginQueueStats } from './loginQueue.js';
+import { SYSTEM_PROFILE } from './systemProfile.js';
 
 const MAX_LATENCY_SAMPLES = 600;
 const MAX_SLOW = 60;
-const SLOW_THRESHOLD_MS = (() => {
-  const n = Number(process.env.METRICS_SLOW_MS);
-  return Number.isFinite(n) && n > 0 ? n : 500;
-})();
+const SLOW_THRESHOLD_MS = SYSTEM_PROFILE.slowThresholdMs;
 const ONLINE_WINDOW_MS = 3 * 60 * 1000;
 const RPS_WINDOW_MS = 60 * 1000;
 
@@ -210,6 +208,24 @@ export function metricsSnapshot() {
     db: {
       sizeBytes: dbSize()
     },
-    login: loginQueueStats()
+    login: loginQueueStats(),
+    env: {
+      tier: SYSTEM_PROFILE.tier,
+      label: SYSTEM_PROFILE.label,
+      cpuModel: SYSTEM_PROFILE.cpuModel,
+      cpuCores: SYSTEM_PROFILE.cpuCores,
+      totalMemGB: SYSTEM_PROFILE.totalMemGB,
+      freeMemGB: SYSTEM_PROFILE.freeMemGB,
+      platform: SYSTEM_PROFILE.platform,
+      arch: SYSTEM_PROFILE.arch,
+      nodeVersion: SYSTEM_PROFILE.nodeVersion,
+      scryptMs: SYSTEM_PROFILE.scryptMs,
+      loginConcurrency: SYSTEM_PROFILE.loginConcurrency,
+      uvThreadPoolSize: SYSTEM_PROFILE.uvThreadPoolSize,
+      persistDebounceMs: SYSTEM_PROFILE.persistDebounceMs,
+      slowThresholdMs: SYSTEM_PROFILE.slowThresholdMs,
+      suggestedVus: SYSTEM_PROFILE.suggestedVus,
+      detectedAt: SYSTEM_PROFILE.detectedAt
+    }
   };
 }

@@ -1,6 +1,6 @@
 {
   "name": "lan-sim-teach-platform",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "局域网仿真实训教学平台 - WWW/FTP/Telnet/DNS/DHCP 模拟",

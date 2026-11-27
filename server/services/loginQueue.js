@@ -4,13 +4,14 @@
 //   - 超过阈值：立刻返回 202（queued），前端提示「请稍候」并按 retryAfterMs 自动重试，
 //     形成排队效果，避免连接被长时间挂起。
 // 阈值可用环境变量覆盖：LOGIN_MAX_CONCURRENT / LOGIN_RETRY_BASE_MS。
+import { SYSTEM_PROFILE } from './systemProfile.js';
 
 function positiveInt(value, fallback) {
   const num = Number(value);
   return Number.isFinite(num) && num > 0 ? Math.floor(num) : fallback;
 }
 
-const MAX_CONCURRENT = positiveInt(process.env.LOGIN_MAX_CONCURRENT, 6);
+const MAX_CONCURRENT = positiveInt(process.env.LOGIN_MAX_CONCURRENT, SYSTEM_PROFILE.loginConcurrency);
 const BASE_RETRY_MS = positiveInt(process.env.LOGIN_RETRY_BASE_MS, 400);
 const MAX_RETRY_MS = 3000;
 const THROTTLE_WINDOW_MS = 2000;

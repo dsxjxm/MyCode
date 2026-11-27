@@ -208,6 +208,39 @@ function renderMonitor(m) {
   if (slowEmpty) slowEmpty.hidden = slowItems.length > 0;
   const slowMeta = document.getElementById('slowMeta');
   if (slowMeta) slowMeta.textContent = `最近 ${slowItems.length} 条 · ≥ ${(m.slow && m.slow.thresholdMs) || 500} ms`;
+
+  // 环境自检与自动配置
+  const env = m.env || {};
+  const envGrid = document.getElementById('envGrid');
+  if (envGrid && env.tier) {
+    const items = [
+      ['性能档位', `${env.label}（${env.tier}）`],
+      ['CPU 型号', env.cpuModel || '—'],
+      ['CPU 核心', `${env.cpuCores || 0} 核`],
+      ['内存', `总 ${env.totalMemGB || 0} GB · 空闲 ${env.freeMemGB || 0} GB`],
+      ['scrypt 基准', `${env.scryptMs || 0} ms / 次`],
+      ['登录并发上限', `${env.loginConcurrency || 0}（已生效）`],
+      ['线程池大小', String(env.uvThreadPoolSize || 0)],
+      ['写盘防抖', `${env.persistDebounceMs || 0} ms`],
+      ['慢请求阈值', `${env.slowThresholdMs || 0} ms`],
+      ['建议压测并发', `${env.suggestedVus || 0} 路`],
+      ['Node / 平台', `${env.nodeVersion || ''} · ${env.platform || ''}/${env.arch || ''}`]
+    ];
+    envGrid.innerHTML = items
+      .map(
+        ([k, v]) =>
+          `<div class="env-item"><div class="env-k">${escapeHtml(k)}</div><div class="env-v">${escapeHtml(
+            String(v)
+          )}</div></div>`
+      )
+      .join('');
+    const envMeta = document.getElementById('envMeta');
+    if (envMeta) {
+      envMeta.textContent = env.detectedAt
+        ? `检测于 ${formatTime(env.detectedAt)} · 配置已自动生效`
+        : '配置已自动生效';
+    }
+  }
 }
 
 // ==================== 学期归档 ====================

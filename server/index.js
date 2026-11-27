@@ -18,10 +18,13 @@ import mailRoutes from './routes/mail.js';
 import adminRoutes from './routes/admin.js';
 import { startMailScheduler } from './services/mailSim.js';
 import { metricsMiddleware } from './services/metrics.js';
+import { SYSTEM_PROFILE } from './services/systemProfile.js';
 import { APP_BUILD, APP_NAME, APP_VERSION } from './version.js';
 
-// 密码校验等 CPU 任务走 libuv 线程池，双核机器也能吃到第二个核（须在首次使用前设置）
-if (!process.env.UV_THREADPOOL_SIZE) process.env.UV_THREADPOOL_SIZE = '8';
+// 密码校验等 CPU 任务走 libuv 线程池；线程数由启动时的环境自检结果决定（须在首次使用前设置）
+if (!process.env.UV_THREADPOOL_SIZE) {
+  process.env.UV_THREADPOOL_SIZE = String(SYSTEM_PROFILE.uvThreadPoolSize);
+}
 
 ensureDirs();
 
@@ -139,6 +142,14 @@ dbReady.then(() => {
     for (const address of addresses) {
       console.log(`  局域网访问：http://${address}:${PORT}`);
     }
+    console.log(
+      `  环境自检：${SYSTEM_PROFILE.label}档 · ${SYSTEM_PROFILE.cpuCores} 核 · ` +
+        `${SYSTEM_PROFILE.totalMemGB}GB 内存 · scrypt ${SYSTEM_PROFILE.scryptMs}ms`
+    );
+    console.log(
+      `  自动配置：登录并发 ${SYSTEM_PROFILE.loginConcurrency} · 线程池 ${process.env.UV_THREADPOOL_SIZE} · ` +
+        `写盘防抖 ${SYSTEM_PROFILE.persistDebounceMs}ms · 慢请求阈值 ${SYSTEM_PROFILE.slowThresholdMs}ms`
+    );
     console.log('  教师初始账号：admin / admin123');
     console.log('');
   });

@@ -24,6 +24,10 @@
     .archive-checks label { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #3b4a5f; cursor: pointer; line-height: 1.5; }
     .archive-checks input { width: 16px; height: 16px; margin-top: 2px; accent-color: #2c5f8a; cursor: pointer; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .env-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+    .env-item { background: #f7f9fc; border: 1px solid #e6ebf2; border-radius: 8px; padding: 10px 12px; }
+    .env-item .env-k { font-size: 12px; color: #748096; }
+    .env-item .env-v { font-size: 14px; color: #24344a; margin-top: 4px; font-weight: 600; word-break: break-all; }
   </style>
 </head>
 <body class="app-body">
@@ -250,6 +254,13 @@
             </div>
             <div class="empty" id="slowEmpty" hidden>暂无慢请求</div>
           </div>
+        </div>
+        <div class="panel" style="margin-top:16px">
+          <div class="panel-head">
+            <h3>环境自检与自动配置</h3>
+            <span class="muted small" id="envMeta">启动时检测一次，配置已自动生效</span>
+          </div>
+          <div class="env-grid" id="envGrid"></div>
         </div>
       </section>
 

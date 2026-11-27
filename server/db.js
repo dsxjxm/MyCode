@@ -6,6 +6,7 @@ import path from 'node:path';
 import { DB_FILE, ensureDirs, DATA_DIR } from './paths.js';
 import { hashPassword } from './password.js';
 import { createClassFolder, createStudentFolder } from './storage.js';
+import { SYSTEM_PROFILE } from './services/systemProfile.js';
 
 ensureDirs();
 
@@ -17,9 +18,10 @@ function now() {
 }
 
 // 写操作后持久化到文件（sql.js 是内存 DB）
-// 合并写：250ms 内的多次写只做一次「整库导出 + 落盘」，
+// 合并写：250ms 左右的多次写只做一次「整库导出 + 落盘」，
 // 避免并发写时（登录、发邮件、保存设置）互相排队把事件循环堵死。
-const PERSIST_DEBOUNCE_MS = 250;
+// 防抖时长由系统自检给出（低配机器 400ms，高性能机器 200ms），可用 DB_PERSIST_DEBOUNCE_MS 覆盖。
+const PERSIST_DEBOUNCE_MS = SYSTEM_PROFILE.persistDebounceMs;
 let persistTimer = null;
 let dirty = false;
 
