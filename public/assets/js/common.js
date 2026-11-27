@@ -203,3 +203,20 @@ export function bindLogout(button) {
     }
   });
 }
+
+// 版本标识：把 /api/version 的结果填进页面上所有 [data-app-version]
+export async function loadAppVersion() {
+  try {
+    const info = await api('/api/version');
+    document.querySelectorAll('[data-app-version]').forEach((el) => {
+      el.textContent = `v${info.version}`;
+      el.title = `${info.name} v${info.version} · 构建 ${info.build}`;
+    });
+  } catch {
+    /* 版本信息拉取失败不影响使用 */
+  }
+}
+
+if (typeof document !== 'undefined') {
+  loadAppVersion();
+}

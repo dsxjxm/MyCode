@@ -91077,6 +91077,11 @@ router9.get("/recipients/search", bindMailAccount, needMailAccount, (req, res) =
 });
 var mail_default = router9;
 
+// server/version.js
+var APP_VERSION = "0.2.0";
+var APP_BUILD = "2026-11-27";
+var APP_NAME = "\u5C40\u57DF\u7F51\u4EFF\u771F\u5B9E\u8BAD\u6559\u5B66\u5E73\u53F0";
+
 // server/index.js
 if (!process.env.UV_THREADPOOL_SIZE) process.env.UV_THREADPOOL_SIZE = "8";
 ensureDirs();
@@ -91131,7 +91136,14 @@ app.get("/mail.html", (req, res) => {
   res.sendFile(import_node_path10.default.join(PUBLIC_DIR, "mail.html"));
 });
 app.get("/favicon.ico", (req, res) => res.status(204).end());
-app.get("/health", (req, res) => res.json({ ok: true, time: (/* @__PURE__ */ new Date()).toISOString() }));
+app.get(
+  "/health",
+  (req, res) => res.json({ ok: true, version: APP_VERSION, time: (/* @__PURE__ */ new Date()).toISOString() })
+);
+app.get(
+  "/api/version",
+  (req, res) => res.json({ name: APP_NAME, version: APP_VERSION, build: APP_BUILD })
+);
 app.use("/api", (req, res) => res.status(404).json({ error: "\u63A5\u53E3\u4E0D\u5B58\u5728" }));
 app.use((err, req, res, _next) => {
   if ((err == null ? void 0 : err.code) === "LIMIT_FILE_SIZE") {

@@ -199,3 +199,18 @@ node scripts/loadtest.mjs --base http://127.0.0.1:3000 \
 
 建议课堂开场分批登录（30+30，间隔 1~2 分钟）；Windows 上把程序目录与 `data` 加入 Defender 排除项、关闭磁盘索引、用 SSD，可明显降低写库与文件操作延迟。
 
+---
+
+## 十、版本迭代
+
+版本号集中在 [server/version.js](file:///workspace/server/version.js)，发版时同步修改该文件与 `package.json`：
+
+- 服务端：`GET /api/version` 返回 `{ name, version, build }`，`GET /health` 也带 `version`
+- 页面：登录页左下角、教师控制台与学生实训页右上角显示 `v0.2.0` 角标（读取 `/api/version`）
+- 打包文件名带版本号，便于区分历史离线包
+
+| 版本 | 日期 | 内容 |
+| --- | --- | --- |
+| v0.2.0 | 2026-11-27 | 并发优化：密码校验异步化（scrypt 线程池）、数据库 250ms 合并落盘、HTTP 长连接调优；新增版本接口与页面版本标识；WWW 语法速查面板；上传中文文件名修复（含历史文件自动修正） |
+| v0.1.0 | 2026-11-26 | 首个可部署版本：WWW / FTP / Telnet / DNS / DHCP / 邮件六大模块 |
+

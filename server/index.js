@@ -16,6 +16,7 @@ import terminalRoutes from './routes/terminal.js';
 import networkRoutes from './routes/network.js';
 import mailRoutes from './routes/mail.js';
 import { startMailScheduler } from './services/mailSim.js';
+import { APP_BUILD, APP_NAME, APP_VERSION } from './version.js';
 
 // 密码校验等 CPU 任务走 libuv 线程池，双核机器也能吃到第二个核（须在首次使用前设置）
 if (!process.env.UV_THREADPOOL_SIZE) process.env.UV_THREADPOOL_SIZE = '8';
@@ -84,7 +85,12 @@ app.get('/mail.html', (req, res) => {
 });
 
 app.get('/favicon.ico', (req, res) => res.status(204).end());
-app.get('/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+app.get('/health', (req, res) =>
+  res.json({ ok: true, version: APP_VERSION, time: new Date().toISOString() })
+);
+app.get('/api/version', (req, res) =>
+  res.json({ name: APP_NAME, version: APP_VERSION, build: APP_BUILD })
+);
 
 app.use('/api', (req, res) => res.status(404).json({ error: '接口不存在' }));
 
