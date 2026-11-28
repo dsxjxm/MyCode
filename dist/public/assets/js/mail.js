@@ -15,6 +15,7 @@
     domain: 'example.local',
     smtp_log: [],
     attachments: [],       // 待发送附件 [{id,name,size,stored}]
+    attachmentLimits: { maxCount: 5, maxEach: 10 * 1024 * 1024 }
   };
 
   // ========== API 封装 ==========
@@ -140,6 +141,8 @@
     try {
       const cfg = await api('GET', '/config');
       state.domain = cfg.domain;
+      if (cfg.attachmentLimits) state.attachmentLimits = cfg.attachmentLimits;
+      updateAttachmentHint();
       updateDomainLabels();
     } catch { /* ignore */ }
 
@@ -468,6 +471,14 @@
   }
 
   // 附件
+  function updateAttachmentHint() {
+    const hint = document.getElementById('attachHint');
+    if (!hint) return;
+    const { maxCount, maxEach } = state.attachmentLimits;
+    const each = maxEach == null ? '单个不另设上限' : `单个 ≤ ${maxEach / 1024 / 1024} MiB`;
+    hint.textContent = `最多 ${maxCount} 个，${each}`;
+  }
+
   let _attachBound = false;
   function setupAttachInput() {
     if (_attachBound) return;
@@ -476,14 +487,22 @@
       const files = Array.from(e.target.files || []);
       e.target.value = '';
       for (const f of files) {
-        if (state.attachments.length >= 5) { toast('最多 5 个附件', 'error'); break; }
-        if (f.size > 10 * 1024 * 1024) { toast(`「${f.name}」超过 10MB，已跳过`, 'error'); continue; }
+        const { maxCount, maxEach } = state.attachmentLimits;
+        if (state.attachments.length >= maxCount) { toast(`最多 ${maxCount} 个附件`, 'error'); break; }
+        if (maxEach != null && f.size > maxEach) {
+          toast(`「${f.name}」超过 ${maxEach / 1024 / 1024} MiB，已跳过`, 'error');
+          continue;
+        }
         try {
           const fd = new FormData();
           fd.append('file', f);
           const res = await fetch('/api/mail/attachments', { method: 'POST', body: fd });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || '上传失败');
+          if (data.limits) {
+            state.attachmentLimits = data.limits;
+            updateAttachmentHint();
+          }
           state.attachments.push(data.attachment);
           renderAttachChips();
         } catch (err) { toast(err.message, 'error'); }

@@ -83358,6 +83358,12 @@ function loginQueueStats() {
 
 // server/services/uploadRules.js
 var KEY = "upload_allowed_extensions";
+var SIZE_KEY = "upload_file_size_limit";
+var SIZE_MODULES = ["www", "terminal", "mail", "students"];
+var DEFAULT_SIZE_CONFIG = {
+  enabled: true,
+  valuesMiB: { www: 20, terminal: 10, mail: 10, students: 10 }
+};
 function parseExtensionList(input) {
   const raw = Array.isArray(input) ? input.join(",") : String(input || "");
   const list = [];
@@ -83386,6 +83392,59 @@ function saveAllowedExtensions(input) {
     db.prepare("INSERT INTO app_settings (key, value) VALUES (?, ?)").run(KEY, value);
   }
   return list;
+}
+function defaultSizeConfig() {
+  return { enabled: true, valuesMiB: { ...DEFAULT_SIZE_CONFIG.valuesMiB } };
+}
+function validateUploadFileSizeConfig(input) {
+  if (!input || typeof input !== "object" || typeof input.enabled !== "boolean") {
+    throw new Error("\u4E0A\u4F20\u5927\u5C0F\u9650\u5236\u5F00\u5173\u683C\u5F0F\u4E0D\u6B63\u786E");
+  }
+  const values = input.valuesMiB;
+  if (!values || typeof values !== "object") throw new Error("\u8BF7\u8BBE\u7F6E\u5404\u6A21\u5757\u4E0A\u4F20\u5927\u5C0F");
+  const config = { enabled: input.enabled, valuesMiB: {} };
+  for (const module2 of SIZE_MODULES) {
+    const value = values[module2];
+    if (!Number.isInteger(value) || value < 1 || value > 1024) {
+      throw new Error("\u5404\u6A21\u5757\u4E0A\u4F20\u5927\u5C0F\u987B\u4E3A 1\uFF5E1024 MiB \u7684\u6574\u6570");
+    }
+    config.valuesMiB[module2] = value;
+  }
+  return config;
+}
+function getUploadFileSizeConfig() {
+  const config = defaultSizeConfig();
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(SIZE_KEY);
+  if (!row) return config;
+  try {
+    const saved = JSON.parse(row.value);
+    if (saved && typeof saved.enabled === "boolean") config.enabled = saved.enabled;
+    const values = saved && saved.valuesMiB;
+    for (const module2 of SIZE_MODULES) {
+      const value = values && values[module2];
+      if (Number.isInteger(value) && value >= 1 && value <= 1024) {
+        config.valuesMiB[module2] = value;
+      }
+    }
+  } catch (_) {
+  }
+  return config;
+}
+function saveUploadFileSizeConfig(input) {
+  const config = validateUploadFileSizeConfig(input);
+  const value = JSON.stringify(config);
+  const exists = db.prepare("SELECT 1 AS x FROM app_settings WHERE key = ?").get(SIZE_KEY);
+  if (exists) {
+    db.prepare("UPDATE app_settings SET value = ? WHERE key = ?").run(value, SIZE_KEY);
+  } else {
+    db.prepare("INSERT INTO app_settings (key, value) VALUES (?, ?)").run(SIZE_KEY, value);
+  }
+  return config;
+}
+function getUploadFileSizeBytes(module2) {
+  const config = getUploadFileSizeConfig();
+  if (!config.enabled) return Infinity;
+  return config.valuesMiB[module2] * 1024 * 1024;
 }
 function extensionOf(name) {
   const base = String(name || "").split(/[\\/]/).pop();
@@ -88484,7 +88543,10 @@ function createZip(opts = {}) {
 }
 var router3 = (0, import_express3.Router)();
 router3.use(requireTeacher);
-var upload = (0, import_multer.default)({ storage: import_multer.default.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+var upload = (0, import_multer.default)({
+  storage: import_multer.default.memoryStorage(),
+  limits: () => ({ fileSize: getUploadFileSizeBytes("students") })
+});
 function getStudent(id) {
   return db.prepare(
     `SELECT s.*, c.name AS class_name, c.folder AS class_folder
@@ -88774,7 +88836,10 @@ function getAccessLogs(studentId, limit = 50) {
 // server/routes/space.js
 var router4 = (0, import_express4.Router)();
 router4.use(requireStudent);
-var upload2 = (0, import_multer2.default)({ storage: import_multer2.default.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+var upload2 = (0, import_multer2.default)({
+  storage: import_multer2.default.memoryStorage(),
+  limits: () => ({ fileSize: getUploadFileSizeBytes("www") })
+});
 function context(req) {
   const row = db.prepare(
     `SELECT s.*, c.name AS class_name, c.folder AS class_folder
@@ -89739,7 +89804,10 @@ function execTelnet(state, command, deps, upload5) {
 // server/routes/terminal.js
 var router7 = (0, import_express7.Router)();
 router7.use(requireStudent);
-var upload3 = (0, import_multer3.default)({ storage: import_multer3.default.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+var upload3 = (0, import_multer3.default)({
+  storage: import_multer3.default.memoryStorage(),
+  limits: () => ({ fileSize: getUploadFileSizeBytes("terminal") })
+});
 function context2(req) {
   const row = db.prepare(
     `SELECT s.*, c.name AS class_name, c.folder AS class_folder
@@ -89751,13 +89819,29 @@ function context2(req) {
     vfs: createVfs(row.class_folder, row.folder)
   };
 }
-router7.post("/exec", (req, res) => {
+router7.post("/exec", upload3.single("file"), (req, res) => {
+  var _a2, _b;
   const ctx = context2(req);
   if (!ctx) return res.status(401).json({ error: "\u5B66\u751F\u4E0D\u5B58\u5728" });
-  const { mode = "ftp", command = "", state, upload: upload5 } = req.body || {};
-  if (upload5 && upload5.name) {
-    const rule = checkUploadName(upload5.name);
+  const { mode = "ftp", command = "" } = req.body || {};
+  let state = (_a2 = req.body) == null ? void 0 : _a2.state;
+  if (typeof state === "string") {
+    try {
+      state = JSON.parse(state);
+    } catch (_) {
+      return res.status(400).json({ error: "\u7EC8\u7AEF\u72B6\u6001\u683C\u5F0F\u4E0D\u6B63\u786E" });
+    }
+  }
+  const uploadData = req.file ? { name: req.file.originalname, content: req.file.buffer.toString("utf8") } : (_b = req.body) == null ? void 0 : _b.upload;
+  if (uploadData && uploadData.name) {
+    const rule = checkUploadName(uploadData.name);
     if (!rule.ok) return res.status(400).json({ error: rule.error });
+    if (!req.file) {
+      const size = Buffer.byteLength(String(uploadData.content || ""), "utf8");
+      if (size > getUploadFileSizeBytes("terminal")) {
+        return res.status(413).json({ error: "\u6587\u4EF6\u8D85\u51FA\u5927\u5C0F\u9650\u5236" });
+      }
+    }
   }
   const deps = {
     vfs: ctx.vfs,
@@ -89771,10 +89855,10 @@ router7.post("/exec", (req, res) => {
   let result;
   if (mode === "telnet") {
     const s = state && typeof state === "object" ? state : initTelnetState();
-    result = execTelnet(s, command, deps, upload5);
+    result = execTelnet(s, command, deps, uploadData);
   } else {
     const s = state && typeof state === "object" ? state : initFtpState();
-    result = execFtp(s, command, deps, upload5);
+    result = execFtp(s, command, deps, uploadData);
   }
   res.json(result);
 });
@@ -90648,7 +90732,6 @@ function updateConfig(patch) {
   return merged;
 }
 var MAX_ATTACH_COUNT = 5;
-var MAX_ATTACH_EACH = 10 * 1024 * 1024;
 function saveAttachment(buffer, originalName) {
   const safeName = import_node_path9.default.basename(originalName || "file").replace(/[\\/:*?"<>|]/g, "_").slice(0, 120);
   const id = import_node_crypto4.default.randomBytes(16).toString("hex");
@@ -90662,7 +90745,8 @@ function saveAttachment(buffer, originalName) {
   };
 }
 function attachmentLimits() {
-  return { maxCount: MAX_ATTACH_COUNT, maxEach: MAX_ATTACH_EACH };
+  const maxEach = getUploadFileSizeBytes("mail");
+  return { maxCount: MAX_ATTACH_COUNT, maxEach: Number.isFinite(maxEach) ? maxEach : null };
 }
 function resolveAttachment(stored) {
   if (!stored || !/^[a-f0-9-]+__/.test(stored)) return null;
@@ -90813,7 +90897,10 @@ function startMailScheduler(intervalMs = 15e3) {
 
 // server/routes/mail.js
 var router9 = (0, import_express9.Router)();
-var upload4 = (0, import_multer4.default)({ storage: import_multer4.default.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+var upload4 = (0, import_multer4.default)({
+  storage: import_multer4.default.memoryStorage(),
+  limits: () => ({ fileSize: getUploadFileSizeBytes("mail") })
+});
 function requireLogin2(req, res, next) {
   if (!req.user) return res.status(401).json({ error: "\u8BF7\u5148\u767B\u5F55" });
   next();
@@ -91061,7 +91148,7 @@ router9.put("/teacher-alias", requireTeacher, (req, res) => {
   res.json({ ok: true, account: publicAccount(fresh) });
 });
 router9.get("/config", requireLogin2, (req, res) => {
-  res.json(getMailConfig());
+  res.json({ ...getMailConfig(), attachmentLimits: attachmentLimits() });
 });
 router9.put("/config", requireTeacher, (req, res) => {
   const { domain, smtp_port, pop3_port, max_size_kb, enabled } = req.body || {};
@@ -91533,13 +91620,33 @@ router10.get("/metrics", (req, res) => {
   res.json(metricsSnapshot());
 });
 router10.get("/upload-settings", (req, res) => {
-  res.json({ allowedExtensions: getAllowedExtensions() });
+  res.json({
+    allowedExtensions: getAllowedExtensions(),
+    fileSizeLimit: getUploadFileSizeConfig()
+  });
 });
 router10.put("/upload-settings", (req, res) => {
   const body = req.body || {};
-  const input = body.allowedExtensions != null ? body.allowedExtensions : body.value;
-  const list = saveAllowedExtensions(input);
-  res.json({ ok: true, allowedExtensions: list });
+  const hasExtensions = body.allowedExtensions != null || body.value != null;
+  const hasFileSize = Object.prototype.hasOwnProperty.call(body, "fileSizeLimit");
+  let sizeConfig;
+  if (hasFileSize) {
+    try {
+      sizeConfig = validateUploadFileSizeConfig(body.fileSizeLimit);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+  if (hasExtensions) {
+    const input = body.allowedExtensions != null ? body.allowedExtensions : body.value;
+    saveAllowedExtensions(input);
+  }
+  if (sizeConfig) saveUploadFileSizeConfig(sizeConfig);
+  res.json({
+    ok: true,
+    allowedExtensions: getAllowedExtensions(),
+    fileSizeLimit: getUploadFileSizeConfig()
+  });
 });
 var ARCHIVE_RE = /^[A-Za-z0-9._\-\u4e00-\u9fa5]+\.db$/;
 function isArchiveName(name) {
@@ -91669,8 +91776,8 @@ router10.delete("/archives/:name", (req, res) => {
 var admin_default = router10;
 
 // server/version.js
-var APP_VERSION = "0.5.0";
-var APP_BUILD = "2026-11-28";
+var APP_VERSION = "0.6.0";
+var APP_BUILD = "2026-11-29";
 var APP_NAME = "\u5C40\u57DF\u7F51\u4EFF\u771F\u5B9E\u8BAD\u6559\u5B66\u5E73\u53F0";
 
 // server/index.js

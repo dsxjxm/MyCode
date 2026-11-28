@@ -18,6 +18,11 @@
     .module-card .m-actions { display: flex; gap: 8px; }
     .module-card .m-switch { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #3b4a5f; background: #f7f9fc; border-radius: 6px; padding: 8px 10px; }
     .module-card .m-switch input { width: 16px; height: 16px; accent-color: #2c5f8a; cursor: pointer; }
+    .upload-size-switch { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 13px; color: #3b4a5f; cursor: pointer; }
+    .upload-size-switch input { width: 16px; height: 16px; accent-color: #2c5f8a; }
+    .upload-size-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .upload-size-item { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: #526078; }
+    .upload-size-item input:disabled { background: #f1f3f6; color: #8a95a8; cursor: not-allowed; }
     .monitor-sub { font-size: 11.5px; color: #8a95a8; margin-top: 4px; }
     .stat-card .stat-num.small { font-size: 20px; }
     .archive-checks { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 14px; }
@@ -214,6 +219,35 @@
             <button class="btn btn-ghost btn-sm" id="uploadExtClearBtn" type="button">设为不限制</button>
           </div>
           <p class="hint" id="uploadExtHint"></p>
+        </div>
+        <div class="panel" style="margin-top:16px">
+          <div class="panel-head">
+            <h3>单个文件上传大小限制</h3>
+            <span class="muted small">保存后立即生效，无需重启</span>
+          </div>
+          <label class="upload-size-switch">
+            <input type="checkbox" id="uploadSizeEnabled" checked>
+            启用单个文件大小限制
+          </label>
+          <div class="upload-size-grid">
+            <label class="upload-size-item">WWW 文件（MiB）
+              <input class="input" type="number" min="1" max="1024" step="1" value="20" data-upload-size="www">
+            </label>
+            <label class="upload-size-item">FTP / Telnet 文件（MiB）
+              <input class="input" type="number" min="1" max="1024" step="1" value="10" data-upload-size="terminal">
+            </label>
+            <label class="upload-size-item">邮件附件（MiB）
+              <input class="input" type="number" min="1" max="1024" step="1" value="10" data-upload-size="mail">
+            </label>
+            <label class="upload-size-item">学生名单导入（MiB）
+              <input class="input" type="number" min="1" max="1024" step="1" value="10" data-upload-size="students">
+            </label>
+          </div>
+          <p class="hint">每项可设为 1～1024 MiB 的整数（1 MiB = 1024 × 1024 字节）。关闭总开关后不施加业务单文件上限，但会保留当前数值；上传使用内存暂存，关闭或设置过大可能增加服务内存压力。</p>
+          <div class="m-actions" style="margin-top:10px">
+            <button class="btn btn-primary btn-sm" id="saveUploadSizeBtn" type="button">保存大小设置</button>
+          </div>
+          <p class="hint" id="uploadSizeHint"></p>
         </div>
       </section>
 

@@ -83,6 +83,9 @@ async function loadUploadSettings() {
   const input = document.getElementById('uploadAllowedExt');
   if (!input) return;
   const hint = document.getElementById('uploadExtHint');
+  const sizeEnabled = document.getElementById('uploadSizeEnabled');
+  const sizeInputs = Array.from(document.querySelectorAll('[data-upload-size]'));
+  const sizeHint = document.getElementById('uploadSizeHint');
 
   function renderUploadHint() {
     if (!hint) return;
@@ -92,15 +95,64 @@ async function loadUploadSettings() {
       : '当前不限制上传类型。';
   }
 
+  function renderSizeState() {
+    sizeInputs.forEach((item) => { item.disabled = !sizeEnabled.checked; });
+    if (sizeHint) {
+      sizeHint.textContent = sizeEnabled.checked
+        ? '大小限制已启用，按各模块填写的 MiB 数值执行。'
+        : '当前不施加业务单文件大小上限，各模块数值已保留。';
+    }
+  }
+
+  function renderSizeConfig(config) {
+    if (!config) return;
+    sizeEnabled.checked = config.enabled !== false;
+    sizeInputs.forEach((item) => {
+      const value = config.valuesMiB?.[item.dataset.uploadSize];
+      if (value != null) item.value = value;
+    });
+    renderSizeState();
+  }
+
   try {
     const data = await api('/api/admin/upload-settings');
     input.value = (data.allowedExtensions || []).join(',');
     renderUploadHint();
+    renderSizeConfig(data.fileSizeLimit);
   } catch (err) {
     if (hint) hint.textContent = `读取失败：${err.message}`;
+    if (sizeHint) sizeHint.textContent = `读取失败：${err.message}`;
   }
 
   input.addEventListener('input', renderUploadHint);
+  sizeEnabled.addEventListener('change', renderSizeState);
+
+  document.getElementById('saveUploadSizeBtn').addEventListener('click', async () => {
+    const valuesMiB = {};
+    for (const item of sizeInputs) {
+      const value = Number(item.value);
+      if (!Number.isInteger(value) || value < 1 || value > 1024) {
+        toast('各模块上传大小须为 1～1024 MiB 的整数', 'error');
+        item.focus();
+        return;
+      }
+      valuesMiB[item.dataset.uploadSize] = value;
+    }
+    const btn = document.getElementById('saveUploadSizeBtn');
+    btn.disabled = true;
+    try {
+      const data = await api('/api/admin/upload-settings', {
+        method: 'PUT',
+        body: { fileSizeLimit: { enabled: sizeEnabled.checked, valuesMiB } }
+      });
+      renderSizeConfig(data.fileSizeLimit);
+      toast(sizeEnabled.checked ? '上传大小限制已保存' : '已关闭上传大小限制', 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   document.getElementById('saveUploadExtBtn').addEventListener('click', async () => {
     const btn = document.getElementById('saveUploadExtBtn');
