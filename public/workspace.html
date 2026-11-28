@@ -37,7 +37,13 @@
           <button class="mini-btn" id="uploadBtn" type="button" title="上传文件到当前目录">上传</button>
         </div>
       </div>
-      <div class="current-dir" id="currentDir">www/</div>
+      <div class="dir-nav">
+        <div class="dir-nav-actions">
+          <button class="mini-btn" id="backDirBtn" type="button" title="返回上一目录" aria-label="返回上一目录" disabled>←</button>
+          <button class="mini-btn" id="forwardDirBtn" type="button" title="前进到下一目录" aria-label="前进到下一目录" disabled>→</button>
+        </div>
+        <div class="current-dir" id="currentDir" title="点击目录名跳转"></div>
+      </div>
       <div class="file-tree" id="fileTree"></div>
       <div class="pane-foot"><span id="spacePath">个人空间</span></div>
     </aside>
