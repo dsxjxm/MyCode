@@ -91669,8 +91669,8 @@ router10.delete("/archives/:name", (req, res) => {
 var admin_default = router10;
 
 // server/version.js
-var APP_VERSION = "0.4.0";
-var APP_BUILD = "2026-11-27";
+var APP_VERSION = "0.5.0";
+var APP_BUILD = "2026-11-28";
 var APP_NAME = "\u5C40\u57DF\u7F51\u4EFF\u771F\u5B9E\u8BAD\u6559\u5B66\u5E73\u53F0";
 
 // server/index.js

@@ -20,6 +20,8 @@ const state = {
   tabs: [],
   activePath: null,
   selectedDir: '',
+  dirHistory: [''],
+  dirHistoryIndex: 0,
   previewToken: '',
   settings: null,
   expanded: new Set(),
@@ -33,6 +35,8 @@ const el = {
   logoutBtn: document.getElementById('logoutBtn'),
   fileTree: document.getElementById('fileTree'),
   currentDir: document.getElementById('currentDir'),
+  backDirBtn: document.getElementById('backDirBtn'),
+  forwardDirBtn: document.getElementById('forwardDirBtn'),
   spacePath: document.getElementById('spacePath'),
   tabs: document.getElementById('tabs'),
   editor: document.getElementById('editor'),
@@ -176,6 +180,13 @@ function bindEvents() {
     editor.resize();
   });
 
+  el.backDirBtn.addEventListener('click', () => goDirHistory(-1));
+  el.forwardDirBtn.addEventListener('click', () => goDirHistory(1));
+  el.currentDir.addEventListener('click', (event) => {
+    const crumb = event.target.closest('button[data-dir]');
+    if (crumb) selectDir(crumb.dataset.dir);
+  });
+
   el.fileTree.addEventListener('click', async (event) => {
     const act = event.target.closest('.tree-act');
     if (act) {
@@ -195,14 +206,12 @@ function bindEvents() {
     if (!row) return;
     const path = row.dataset.path;
     if (row.dataset.type === 'dir') {
-      state.selectedDir = path;
+      selectDir(path);
       if (state.expanded.has(path)) state.expanded.delete(path);
       else state.expanded.add(path);
       renderTree();
-      updateCurrentDir();
     } else {
-      state.selectedDir = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
-      updateCurrentDir();
+      selectDir(path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
       await openFile(path);
     }
   });
@@ -312,7 +321,9 @@ async function loadSpace() {
     if (state.expanded.size === 0) {
       data.files.filter((file) => file.type === 'dir').forEach((file) => state.expanded.add(file.path));
     }
+    syncSelectedDir();
     renderTree();
+    updateCurrentDir();
     syncSettingsForm();
     if (!state.autoOpened) {
       const starter =
@@ -334,6 +345,8 @@ async function reloadFiles() {
   state.files = data.files;
   state.previewToken = data.previewToken;
   state.settings = data.settings;
+  syncSelectedDir();
+  updateCurrentDir();
   state.tabs = state.tabs.filter((tab) => state.files.some((file) => file.path === tab.path && file.type === 'file'));
   const activeMissing = !state.tabs.some((tab) => tab.path === state.activePath);
   if (activeMissing) {
@@ -433,8 +446,73 @@ function renderChildren(node, depth) {
   return wrap;
 }
 
+function parentDir(path) {
+  return path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+}
+
+// 当前目录被删除时，自动退到最近仍然存在的父目录，最终回到 www 根目录。
+function closestExistingDir(path) {
+  const dirs = new Set(['']);
+  for (const file of state.files) {
+    const parts = file.path.split('/');
+    if (file.type === 'dir') dirs.add(file.path);
+    parts.pop();
+    while (parts.length) {
+      dirs.add(parts.join('/'));
+      parts.pop();
+    }
+  }
+  let current = String(path || '').replace(/^\/+|\/+$/g, '');
+  while (current && !dirs.has(current)) current = parentDir(current);
+  return current;
+}
+
+function selectDir(path) {
+  const next = closestExistingDir(path);
+  if (next !== state.selectedDir) {
+    state.dirHistory = state.dirHistory.slice(0, state.dirHistoryIndex + 1);
+    state.dirHistory.push(next);
+    state.dirHistoryIndex += 1;
+  }
+  state.selectedDir = next;
+  state.dirHistory[state.dirHistoryIndex] = next;
+  renderTree();
+  updateCurrentDir();
+}
+
+function goDirHistory(offset) {
+  const index = state.dirHistoryIndex + offset;
+  if (index < 0 || index >= state.dirHistory.length) return;
+  state.dirHistoryIndex = index;
+  state.selectedDir = closestExistingDir(state.dirHistory[index]);
+  state.dirHistory[index] = state.selectedDir;
+  renderTree();
+  updateCurrentDir();
+}
+
+function syncSelectedDir() {
+  state.selectedDir = closestExistingDir(state.selectedDir);
+  state.dirHistory[state.dirHistoryIndex] = state.selectedDir;
+}
+
 function updateCurrentDir() {
-  el.currentDir.textContent = `www/${state.selectedDir ? `${state.selectedDir}/` : ''}`;
+  const crumbs = [{ name: 'www', path: '' }];
+  let path = '';
+  if (state.selectedDir) {
+    for (const name of state.selectedDir.split('/')) {
+      path = path ? `${path}/${name}` : name;
+      crumbs.push({ name, path });
+    }
+  }
+  el.currentDir.innerHTML = crumbs
+    .map(
+      (crumb, index) => `
+        ${index ? '<span class="dir-separator">/</span>' : ''}
+        <button type="button" data-dir="${escapeHtml(crumb.path)}" class="${index === crumbs.length - 1 ? 'active' : ''}" title="跳转到 ${escapeHtml(crumb.path || 'www 根目录')}">${escapeHtml(crumb.name)}</button>`
+    )
+    .join('');
+  el.backDirBtn.disabled = state.dirHistoryIndex <= 0;
+  el.forwardDirBtn.disabled = state.dirHistoryIndex >= state.dirHistory.length - 1;
 }
 
 function renderTabs() {
