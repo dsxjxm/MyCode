@@ -15,6 +15,7 @@ import {
   writeTextFile
 } from '../storage.js';
 import { getAccessLogs } from '../services/accessLog.js';
+import { checkUploadName } from '../services/uploadRules.js';
 
 const router = Router();
 router.use(requireStudent);
@@ -121,6 +122,8 @@ router.post('/upload', upload.single('file'), (req, res) => {
   const ctx = context(req);
   if (!ctx) return res.status(401).json({ error: '学生不存在' });
   if (!req.file) return res.status(400).json({ error: '请选择要上传的文件' });
+  const rule = checkUploadName(decodeUploadName(path.basename(req.file.originalname)));
+  if (!rule.ok) return res.status(400).json({ error: rule.error });
   const dirRel = String(req.body?.path || '');
   const dirAbs = resolveInside(ctx.wwwBase, dirRel);
   if (!dirAbs) return res.status(400).json({ error: '非法路径' });

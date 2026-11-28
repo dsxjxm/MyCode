@@ -6,6 +6,7 @@ import { verifyPassword } from '../password.js';
 import { createVfs } from '../services/vfs.js';
 import { execFtp, initFtpState } from '../services/ftpSim.js';
 import { execTelnet, initTelnetState } from '../services/telnetSim.js';
+import { checkUploadName } from '../services/uploadRules.js';
 
 const router = Router();
 router.use(requireStudent);
@@ -31,6 +32,10 @@ router.post('/exec', (req, res) => {
   if (!ctx) return res.status(401).json({ error: '学生不存在' });
 
   const { mode = 'ftp', command = '', state, upload } = req.body || {};
+  if (upload && upload.name) {
+    const rule = checkUploadName(upload.name);
+    if (!rule.ok) return res.status(400).json({ error: rule.error });
+  }
   const deps = {
     vfs: ctx.vfs,
     hostName: 'student-ftp',
@@ -56,6 +61,8 @@ router.post('/exec', (req, res) => {
 // 此路由用于直接接收 multipart 文件，返回内容供前端组装 put 请求。
 router.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: '未选择文件' });
+  const rule = checkUploadName(req.file.originalname);
+  if (!rule.ok) return res.status(400).json({ error: rule.error });
   const buf = req.file.buffer;
   const isBinary = buf.includes(0);
   if (isBinary) {

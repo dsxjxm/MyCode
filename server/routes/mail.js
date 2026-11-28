@@ -15,6 +15,7 @@ import {
 } from '../services/mailSim.js';
 import { verifyPassword, hashPassword, verifyPasswordAsync } from '../password.js';
 import { throttledLogin } from '../services/loginQueue.js';
+import { checkUploadName } from '../services/uploadRules.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -507,6 +508,8 @@ router.post('/drafts', bindMailAccount, needMailAccount, (req, res) => {
 
 router.post('/attachments', requireLogin, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: '请选择文件' });
+  const rule = checkUploadName(req.file.originalname);
+  if (!rule.ok) return res.status(400).json({ error: rule.error });
   const lim = attachmentLimits();
   const info = saveAttachment(req.file.buffer, req.file.originalname);
   res.json({ ok: true, attachment: info, limits: lim });

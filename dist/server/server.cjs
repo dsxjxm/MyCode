@@ -83356,6 +83356,66 @@ function loginQueueStats() {
   };
 }
 
+// server/services/uploadRules.js
+var KEY = "upload_allowed_extensions";
+function parseExtensionList(input) {
+  const raw = Array.isArray(input) ? input.join(",") : String(input || "");
+  const list = [];
+  const seen = /* @__PURE__ */ Object.create(null);
+  for (const part of raw.split(/[\s,;，；]+/)) {
+    const ext2 = part.trim().replace(/^\.+/, "").toLowerCase();
+    if (!ext2) continue;
+    if (!/^[a-z0-9][a-z0-9_-]{0,15}$/.test(ext2)) continue;
+    if (seen[ext2]) continue;
+    seen[ext2] = true;
+    list.push(ext2);
+  }
+  return list;
+}
+function getAllowedExtensions() {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(KEY);
+  return row ? parseExtensionList(row.value) : [];
+}
+function saveAllowedExtensions(input) {
+  const list = parseExtensionList(input);
+  const value = list.join(",");
+  const exists = db.prepare("SELECT 1 AS x FROM app_settings WHERE key = ?").get(KEY);
+  if (exists) {
+    db.prepare("UPDATE app_settings SET value = ? WHERE key = ?").run(value, KEY);
+  } else {
+    db.prepare("INSERT INTO app_settings (key, value) VALUES (?, ?)").run(KEY, value);
+  }
+  return list;
+}
+function extensionOf(name) {
+  const base = String(name || "").split(/[\\/]/).pop();
+  const idx = base.lastIndexOf(".");
+  if (idx <= 0 || idx === base.length - 1) return "";
+  return base.slice(idx + 1).toLowerCase();
+}
+function checkUploadName(name) {
+  const allowed = getAllowedExtensions();
+  const ext2 = extensionOf(name);
+  if (!allowed.length) return { ok: true, ext: ext2, allowed };
+  if (!ext2) {
+    return {
+      ok: false,
+      ext: ext2,
+      allowed,
+      error: "\u4E0D\u5141\u8BB8\u4E0A\u4F20\u65E0\u6269\u5C55\u540D\u7684\u6587\u4EF6\uFF08\u6559\u5E08\u5DF2\u9650\u5236\u4E0A\u4F20\u7C7B\u578B\uFF09"
+    };
+  }
+  if (allowed.indexOf(ext2) === -1) {
+    return {
+      ok: false,
+      ext: ext2,
+      allowed,
+      error: `\u4E0D\u5141\u8BB8\u4E0A\u4F20 .${ext2} \u7C7B\u578B\u6587\u4EF6\uFF08\u6559\u5E08\u5DF2\u9650\u5236\u4E0A\u4F20\u7C7B\u578B\uFF09`
+    };
+  }
+  return { ok: true, ext: ext2, allowed };
+}
+
 // server/routes/auth.js
 var router = (0, import_express.Router)();
 function teacherSummary(row) {
@@ -83404,6 +83464,10 @@ router.post("/logout", (req, res) => {
   deleteSession(req.sessionToken);
   clearSessionCookie(res);
   res.json({ ok: true });
+});
+router.get("/upload-rules", (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "\u672A\u767B\u5F55" });
+  res.json({ allowedExtensions: getAllowedExtensions() });
 });
 router.get("/me", (req, res) => {
   if (!req.user) return res.status(401).json({ error: "\u672A\u767B\u5F55" });
@@ -88808,6 +88872,8 @@ router4.post("/upload", upload2.single("file"), (req, res) => {
   const ctx = context(req);
   if (!ctx) return res.status(401).json({ error: "\u5B66\u751F\u4E0D\u5B58\u5728" });
   if (!req.file) return res.status(400).json({ error: "\u8BF7\u9009\u62E9\u8981\u4E0A\u4F20\u7684\u6587\u4EF6" });
+  const rule = checkUploadName(decodeUploadName(import_node_path6.default.basename(req.file.originalname)));
+  if (!rule.ok) return res.status(400).json({ error: rule.error });
   const dirRel = String(((_a2 = req.body) == null ? void 0 : _a2.path) || "");
   const dirAbs = resolveInside(ctx.wwwBase, dirRel);
   if (!dirAbs) return res.status(400).json({ error: "\u975E\u6CD5\u8DEF\u5F84" });
@@ -89689,6 +89755,10 @@ router7.post("/exec", (req, res) => {
   const ctx = context2(req);
   if (!ctx) return res.status(401).json({ error: "\u5B66\u751F\u4E0D\u5B58\u5728" });
   const { mode = "ftp", command = "", state, upload: upload5 } = req.body || {};
+  if (upload5 && upload5.name) {
+    const rule = checkUploadName(upload5.name);
+    if (!rule.ok) return res.status(400).json({ error: rule.error });
+  }
   const deps = {
     vfs: ctx.vfs,
     hostName: "student-ftp",
@@ -89710,6 +89780,8 @@ router7.post("/exec", (req, res) => {
 });
 router7.post("/upload", upload3.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "\u672A\u9009\u62E9\u6587\u4EF6" });
+  const rule = checkUploadName(req.file.originalname);
+  if (!rule.ok) return res.status(400).json({ error: rule.error });
   const buf = req.file.buffer;
   const isBinary = buf.includes(0);
   if (isBinary) {
@@ -91170,6 +91242,8 @@ router9.post("/drafts", bindMailAccount, needMailAccount, (req, res) => {
 });
 router9.post("/attachments", requireLogin2, upload4.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "\u8BF7\u9009\u62E9\u6587\u4EF6" });
+  const rule = checkUploadName(req.file.originalname);
+  if (!rule.ok) return res.status(400).json({ error: rule.error });
   const lim = attachmentLimits();
   const info = saveAttachment(req.file.buffer, req.file.originalname);
   res.json({ ok: true, attachment: info, limits: lim });
@@ -91458,6 +91532,15 @@ router10.use(requireTeacher);
 router10.get("/metrics", (req, res) => {
   res.json(metricsSnapshot());
 });
+router10.get("/upload-settings", (req, res) => {
+  res.json({ allowedExtensions: getAllowedExtensions() });
+});
+router10.put("/upload-settings", (req, res) => {
+  const body = req.body || {};
+  const input = body.allowedExtensions != null ? body.allowedExtensions : body.value;
+  const list = saveAllowedExtensions(input);
+  res.json({ ok: true, allowedExtensions: list });
+});
 var ARCHIVE_RE = /^[A-Za-z0-9._\-\u4e00-\u9fa5]+\.db$/;
 function isArchiveName(name) {
   return typeof name === "string" && name.length <= 160 && ARCHIVE_RE.test(name) && name.indexOf("..") === -1;
@@ -91586,7 +91669,7 @@ router10.delete("/archives/:name", (req, res) => {
 var admin_default = router10;
 
 // server/version.js
-var APP_VERSION = "0.3.1";
+var APP_VERSION = "0.4.0";
 var APP_BUILD = "2026-11-27";
 var APP_NAME = "\u5C40\u57DF\u7F51\u4EFF\u771F\u5B9E\u8BAD\u6559\u5B66\u5E73\u53F0";
 

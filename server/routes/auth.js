@@ -9,6 +9,7 @@ import {
   setSessionCookie
 } from '../auth.js';
 import { throttledLogin } from '../services/loginQueue.js';
+import { getAllowedExtensions } from '../services/uploadRules.js';
 
 const router = Router();
 
@@ -65,6 +66,11 @@ router.post('/logout', (req, res) => {
   deleteSession(req.sessionToken);
   clearSessionCookie(res);
   res.json({ ok: true });
+});
+
+router.get('/upload-rules', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: '未登录' });
+  res.json({ allowedExtensions: getAllowedExtensions() });
 });
 
 router.get('/me', (req, res) => {

@@ -48,6 +48,7 @@ async function init() {
   await loadStudents();
   await loadOverview();
   loadModuleSettings();
+  loadUploadSettings();
   const semesterInput = document.getElementById('archiveSemester');
   if (semesterInput && !semesterInput.value) semesterInput.value = defaultSemester();
 }
@@ -70,6 +71,74 @@ async function loadModuleSettings() {
     } catch (err) {
       box.checked = !box.checked;
       toast(err.message || '保存失败', 'error');
+    }
+  });
+}
+
+// 上传文件类型限制（WWW / FTP / 邮件附件共用白名单）
+const UPLOAD_PRESET =
+  'txt,md,html,htm,css,js,json,xml,csv,png,jpg,jpeg,gif,bmp,svg,webp,pdf,doc,docx,xls,xlsx,ppt,pptx,zip,rar,7z,tar,gz';
+
+async function loadUploadSettings() {
+  const input = document.getElementById('uploadAllowedExt');
+  if (!input) return;
+  const hint = document.getElementById('uploadExtHint');
+
+  function renderUploadHint() {
+    if (!hint) return;
+    const list = input.value.split(/[\s,;，；]+/).filter(Boolean);
+    hint.textContent = list.length
+      ? `当前限制 ${list.length} 种扩展名；学生上传其它类型会被拒绝。`
+      : '当前不限制上传类型。';
+  }
+
+  try {
+    const data = await api('/api/admin/upload-settings');
+    input.value = (data.allowedExtensions || []).join(',');
+    renderUploadHint();
+  } catch (err) {
+    if (hint) hint.textContent = `读取失败：${err.message}`;
+  }
+
+  input.addEventListener('input', renderUploadHint);
+
+  document.getElementById('saveUploadExtBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('saveUploadExtBtn');
+    btn.disabled = true;
+    try {
+      const data = await api('/api/admin/upload-settings', {
+        method: 'PUT',
+        body: { allowedExtensions: input.value }
+      });
+      input.value = (data.allowedExtensions || []).join(',');
+      renderUploadHint();
+      toast(
+        data.allowedExtensions.length ? '上传类型限制已保存' : '已设为不限制上传类型',
+        'success'
+      );
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('uploadExtPresetBtn').addEventListener('click', () => {
+    input.value = UPLOAD_PRESET;
+    renderUploadHint();
+  });
+
+  document.getElementById('uploadExtClearBtn').addEventListener('click', async () => {
+    input.value = '';
+    renderUploadHint();
+    try {
+      await api('/api/admin/upload-settings', {
+        method: 'PUT',
+        body: { allowedExtensions: '' }
+      });
+      toast('已设为不限制上传类型', 'success');
+    } catch (err) {
+      toast(err.message, 'error');
     }
   });
 }

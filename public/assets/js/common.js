@@ -217,6 +217,25 @@ export async function loadAppVersion() {
   }
 }
 
+// 上传类型限制：给带 [data-upload-accept] 的文件输入框设置 accept
+// 仅作为前端提示，真正的拦截以服务端校验为准
+export async function loadUploadRules() {
+  const inputs = document.querySelectorAll('[data-upload-accept]');
+  if (!inputs.length) return;
+  try {
+    const data = await api('/api/auth/upload-rules');
+    const exts = (data && data.allowedExtensions) || [];
+    const accept = exts.map((ext) => `.${ext}`).join(',');
+    inputs.forEach((input) => {
+      if (accept) input.setAttribute('accept', accept);
+      else input.removeAttribute('accept');
+    });
+  } catch {
+    /* 获取失败时保持不限制 */
+  }
+}
+
 if (typeof document !== 'undefined') {
   loadAppVersion();
+  loadUploadRules();
 }

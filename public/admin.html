@@ -201,6 +201,20 @@
             </div>
           </div>
         </div>
+        <div class="panel" style="margin-top:16px">
+          <div class="panel-head">
+            <h3>上传文件类型限制</h3>
+            <span class="muted small">作用于 WWW、FTP、邮件附件</span>
+          </div>
+          <p class="hint">填写允许上传的扩展名（逗号或空格分隔，不用带点），例如：txt,html,css,js,png,jpg,pdf,zip。留空表示不限制。仅按文件名后缀判断，故意改扩展名伪装的无法完全拦截。</p>
+          <input class="input" id="uploadAllowedExt" placeholder="例如 txt,html,css,js,png,jpg,pdf,zip">
+          <div class="m-actions" style="margin-top:10px">
+            <button class="btn btn-primary btn-sm" id="saveUploadExtBtn" type="button">保存限制</button>
+            <button class="btn btn-ghost btn-sm" id="uploadExtPresetBtn" type="button">填入常用类型</button>
+            <button class="btn btn-ghost btn-sm" id="uploadExtClearBtn" type="button">设为不限制</button>
+          </div>
+          <p class="hint" id="uploadExtHint"></p>
+        </div>
       </section>
 
       <section class="view" id="view-monitor">
