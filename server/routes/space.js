@@ -15,12 +15,15 @@ import {
   writeTextFile
 } from '../storage.js';
 import { getAccessLogs } from '../services/accessLog.js';
-import { checkUploadName } from '../services/uploadRules.js';
+import { checkUploadName, getUploadFileSizeBytes } from '../services/uploadRules.js';
 
 const router = Router();
 router.use(requireStudent);
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: () => ({ fileSize: getUploadFileSizeBytes('www') })
+});
 
 function context(req) {
   const row = db

@@ -6,7 +6,13 @@ import { db, flushDb } from '../db.js';
 import { requireTeacher } from '../auth.js';
 import { ARCHIVE_DIR, DB_FILE, MAIL_ATTACH_DIR, TRASH_DIR } from '../paths.js';
 import { metricsSnapshot } from '../services/metrics.js';
-import { getAllowedExtensions, saveAllowedExtensions } from '../services/uploadRules.js';
+import {
+  getAllowedExtensions,
+  getUploadFileSizeConfig,
+  saveAllowedExtensions,
+  saveUploadFileSizeConfig,
+  validateUploadFileSizeConfig
+} from '../services/uploadRules.js';
 
 const router = Router();
 router.use(requireTeacher);
@@ -15,16 +21,36 @@ router.get('/metrics', (req, res) => {
   res.json(metricsSnapshot());
 });
 
-// 上传文件类型限制（WWW / FTP / 邮件附件共用）
+// 上传文件类型与大小限制
 router.get('/upload-settings', (req, res) => {
-  res.json({ allowedExtensions: getAllowedExtensions() });
+  res.json({
+    allowedExtensions: getAllowedExtensions(),
+    fileSizeLimit: getUploadFileSizeConfig()
+  });
 });
 
 router.put('/upload-settings', (req, res) => {
   const body = req.body || {};
-  const input = body.allowedExtensions != null ? body.allowedExtensions : body.value;
-  const list = saveAllowedExtensions(input);
-  res.json({ ok: true, allowedExtensions: list });
+  const hasExtensions = body.allowedExtensions != null || body.value != null;
+  const hasFileSize = Object.prototype.hasOwnProperty.call(body, 'fileSizeLimit');
+  let sizeConfig;
+  if (hasFileSize) {
+    try {
+      sizeConfig = validateUploadFileSizeConfig(body.fileSizeLimit);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+  if (hasExtensions) {
+    const input = body.allowedExtensions != null ? body.allowedExtensions : body.value;
+    saveAllowedExtensions(input);
+  }
+  if (sizeConfig) saveUploadFileSizeConfig(sizeConfig);
+  res.json({
+    ok: true,
+    allowedExtensions: getAllowedExtensions(),
+    fileSizeLimit: getUploadFileSizeConfig()
+  });
 });
 
 // ==================== 学期归档 ====================

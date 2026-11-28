@@ -15,10 +15,13 @@ import {
 } from '../services/mailSim.js';
 import { verifyPassword, hashPassword, verifyPasswordAsync } from '../password.js';
 import { throttledLogin } from '../services/loginQueue.js';
-import { checkUploadName } from '../services/uploadRules.js';
+import { checkUploadName, getUploadFileSizeBytes } from '../services/uploadRules.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: () => ({ fileSize: getUploadFileSizeBytes('mail') })
+});
 
 // 确保已登录（loadUser 已在 index.js 全局挂载，这里只需检查）
 function requireLogin(req, res, next) {
@@ -294,7 +297,7 @@ router.put('/teacher-alias', requireTeacher, (req, res) => {
 // ==================== 配置 ====================
 
 router.get('/config', requireLogin, (req, res) => {
-  res.json(getMailConfig());
+  res.json({ ...getMailConfig(), attachmentLimits: attachmentLimits() });
 });
 
 router.put('/config', requireTeacher, (req, res) => {

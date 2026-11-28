@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { db } from '../db.js';
 import { hashPassword, verifyPassword } from '../password.js';
 import { MAIL_ATTACH_DIR } from '../paths.js';
+import { getUploadFileSizeBytes } from './uploadRules.js';
 
 // ==================== 工具函数 ====================
 
@@ -402,7 +403,6 @@ export function updateConfig(patch) {
 // ==================== 附件 ====================
 
 const MAX_ATTACH_COUNT = 5;
-const MAX_ATTACH_EACH = 10 * 1024 * 1024; // 10MB / 个
 
 export function saveAttachment(buffer, originalName) {
   const safeName = path.basename(originalName || 'file').replace(/[\\/:*?"<>|]/g, '_').slice(0, 120);
@@ -419,7 +419,8 @@ export function saveAttachment(buffer, originalName) {
 }
 
 export function attachmentLimits() {
-  return { maxCount: MAX_ATTACH_COUNT, maxEach: MAX_ATTACH_EACH };
+  const maxEach = getUploadFileSizeBytes('mail');
+  return { maxCount: MAX_ATTACH_COUNT, maxEach: Number.isFinite(maxEach) ? maxEach : null };
 }
 
 // 通过 stored 名取绝对路径（只允许 mailAttach 目录内）

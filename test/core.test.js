@@ -11,6 +11,15 @@ const { resolveInside, sanitizeName, createClassFolder, createStudentFolder, lis
 );
 const { parseCsv, rowsToStudents, buildExport, buildTemplate } = await import('../server/importExport.js');
 const { hashPassword, verifyPassword } = await import('../server/password.js');
+const {
+  getAllowedExtensions,
+  getUploadFileSizeBytes,
+  getUploadFileSizeConfig,
+  saveAllowedExtensions,
+  saveUploadFileSizeConfig
+} = await import('../server/services/uploadRules.js');
+const { db, dbReady } = await import('../server/db.js');
+await dbReady;
 
 test('sanitizeName 过滤非法字符并保留中文', () => {
   assert.equal(sanitizeName('张三'), '张三');
@@ -95,4 +104,64 @@ test('密码哈希可校验且不同盐值结果不同', () => {
   assert.notEqual(a, b);
   assert.ok(verifyPassword('123456', a));
   assert.ok(!verifyPassword('654321', a));
+});
+
+test('上传大小默认限制与旧版本一致', () => {
+  assert.deepEqual(getUploadFileSizeConfig(), {
+    enabled: true,
+    valuesMiB: { www: 20, terminal: 10, mail: 10, students: 10 }
+  });
+  assert.equal(getUploadFileSizeBytes('www'), 20 * 1024 * 1024);
+  assert.equal(getUploadFileSizeBytes('terminal'), 10 * 1024 * 1024);
+});
+
+test('上传大小配置可保存、关闭并保留数值，且不影响扩展名', () => {
+  const original = getUploadFileSizeConfig();
+  const originalExt = getAllowedExtensions();
+  try {
+    saveAllowedExtensions('txt,html');
+    saveUploadFileSizeConfig({
+      enabled: true,
+      valuesMiB: { www: 1, terminal: 2, mail: 3, students: 4 }
+    });
+    assert.equal(getUploadFileSizeBytes('mail'), 3 * 1024 * 1024);
+    assert.deepEqual(getAllowedExtensions(), ['txt', 'html']);
+
+    saveUploadFileSizeConfig({
+      enabled: false,
+      valuesMiB: { www: 1, terminal: 2, mail: 3, students: 4 }
+    });
+    assert.equal(getUploadFileSizeBytes('www'), Infinity);
+    assert.deepEqual(getAllowedExtensions(), ['txt', 'html']);
+    assert.deepEqual(getUploadFileSizeConfig().valuesMiB, { www: 1, terminal: 2, mail: 3, students: 4 });
+  } finally {
+    saveUploadFileSizeConfig(original);
+    saveAllowedExtensions(originalExt);
+  }
+});
+
+test('上传大小拒绝非法配置，损坏存储安全回退默认值', () => {
+  const original = getUploadFileSizeConfig();
+  const validValues = { www: 20, terminal: 10, mail: 10, students: 10 };
+  assert.throws(
+    () => saveUploadFileSizeConfig({ enabled: true, valuesMiB: { ...validValues, www: 0 } }),
+    /1～1024/
+  );
+  assert.throws(
+    () => saveUploadFileSizeConfig({ enabled: true, valuesMiB: { ...validValues, mail: 1.5 } }),
+    /1～1024/
+  );
+  assert.throws(
+    () => saveUploadFileSizeConfig({ enabled: 'yes', valuesMiB: validValues }),
+    /开关格式/
+  );
+  try {
+    db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)').run(
+      'upload_file_size_limit',
+      '{broken'
+    );
+    assert.deepEqual(getUploadFileSizeConfig(), { enabled: true, valuesMiB: validValues });
+  } finally {
+    saveUploadFileSizeConfig(original);
+  }
 });

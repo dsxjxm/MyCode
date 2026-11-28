@@ -238,10 +238,10 @@ async function runCommand(command, upload) {
   state.historyIdx = -1;
   try {
     const cur = state.mode === 'ftp' ? state.ftp : state.telnet;
-    const result = await api('/api/terminal/exec', {
-      method: 'POST',
-      body: { mode: state.mode, command: cmd, state: cur, upload }
-    });
+    const body = upload instanceof FormData
+      ? upload
+      : { mode: state.mode, command: cmd, state: cur, upload };
+    const result = await api('/api/terminal/exec', { method: 'POST', body });
     renderOutput(cmd, result);
     if (result.state) {
       if (state.mode === 'ftp') state.ftp = result.state;
@@ -279,22 +279,18 @@ function onInputKey(e) {
   }
 }
 
-function onFileSelected(e) {
+async function onFileSelected(e) {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    const content = reader.result;
-    const upload = { name: file.name, content: typeof content === 'string' ? content : '' };
-    if (typeof content !== 'string') {
-      toast('二进制文件暂不支持文本上传', 'error');
-      el.fileInput.value = '';
-      return;
-    }
-    runCommand(`put ${file.name}`, upload);
-    el.fileInput.value = '';
-  };
-  reader.readAsText(file);
+  const command = `put ${file.name}`;
+  const current = state.mode === 'ftp' ? state.ftp : state.telnet;
+  const form = new FormData();
+  form.append('mode', state.mode);
+  form.append('command', command);
+  form.append('state', JSON.stringify(current));
+  form.append('file', file);
+  await runCommand(command, form);
+  el.fileInput.value = '';
 }
 
 function downloadFile(file) {

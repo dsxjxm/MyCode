@@ -28,11 +28,15 @@ import {
   resolveInside,
   studentSpaceAbs
 } from '../storage.js';
+import { getUploadFileSizeBytes } from '../services/uploadRules.js';
 
 const router = Router();
 router.use(requireTeacher);
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: () => ({ fileSize: getUploadFileSizeBytes('students') })
+});
 
 function getStudent(id) {
   return db

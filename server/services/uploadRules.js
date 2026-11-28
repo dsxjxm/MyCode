@@ -1,8 +1,13 @@
-// 上传文件类型限制：教师可在后台配置允许上传的扩展名（白名单）。
-// 留空表示不限制；非空时，WWW / FTP / 邮件附件三个上传入口都会校验文件名后缀。
+// 上传规则：教师可在后台配置文件类型白名单与各模块单文件大小上限。
 import { db } from '../db.js';
 
 const KEY = 'upload_allowed_extensions';
+const SIZE_KEY = 'upload_file_size_limit';
+const SIZE_MODULES = ['www', 'terminal', 'mail', 'students'];
+const DEFAULT_SIZE_CONFIG = {
+  enabled: true,
+  valuesMiB: { www: 20, terminal: 10, mail: 10, students: 10 }
+};
 
 export function parseExtensionList(input) {
   const raw = Array.isArray(input) ? input.join(',') : String(input || '');
@@ -35,6 +40,65 @@ export function saveAllowedExtensions(input) {
     db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)').run(KEY, value);
   }
   return list;
+}
+
+function defaultSizeConfig() {
+  return { enabled: true, valuesMiB: { ...DEFAULT_SIZE_CONFIG.valuesMiB } };
+}
+
+export function validateUploadFileSizeConfig(input) {
+  if (!input || typeof input !== 'object' || typeof input.enabled !== 'boolean') {
+    throw new Error('上传大小限制开关格式不正确');
+  }
+  const values = input.valuesMiB;
+  if (!values || typeof values !== 'object') throw new Error('请设置各模块上传大小');
+  const config = { enabled: input.enabled, valuesMiB: {} };
+  for (const module of SIZE_MODULES) {
+    const value = values[module];
+    if (!Number.isInteger(value) || value < 1 || value > 1024) {
+      throw new Error('各模块上传大小须为 1～1024 MiB 的整数');
+    }
+    config.valuesMiB[module] = value;
+  }
+  return config;
+}
+
+export function getUploadFileSizeConfig() {
+  const config = defaultSizeConfig();
+  const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(SIZE_KEY);
+  if (!row) return config;
+  try {
+    const saved = JSON.parse(row.value);
+    if (saved && typeof saved.enabled === 'boolean') config.enabled = saved.enabled;
+    const values = saved && saved.valuesMiB;
+    for (const module of SIZE_MODULES) {
+      const value = values && values[module];
+      if (Number.isInteger(value) && value >= 1 && value <= 1024) {
+        config.valuesMiB[module] = value;
+      }
+    }
+  } catch (_) {
+    // 损坏配置安全回退到默认限制，避免意外关闭限制。
+  }
+  return config;
+}
+
+export function saveUploadFileSizeConfig(input) {
+  const config = validateUploadFileSizeConfig(input);
+  const value = JSON.stringify(config);
+  const exists = db.prepare('SELECT 1 AS x FROM app_settings WHERE key = ?').get(SIZE_KEY);
+  if (exists) {
+    db.prepare('UPDATE app_settings SET value = ? WHERE key = ?').run(value, SIZE_KEY);
+  } else {
+    db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)').run(SIZE_KEY, value);
+  }
+  return config;
+}
+
+export function getUploadFileSizeBytes(module) {
+  const config = getUploadFileSizeConfig();
+  if (!config.enabled) return Infinity;
+  return config.valuesMiB[module] * 1024 * 1024;
 }
 
 export function extensionOf(name) {

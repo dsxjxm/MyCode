@@ -6,12 +6,15 @@ import { verifyPassword } from '../password.js';
 import { createVfs } from '../services/vfs.js';
 import { execFtp, initFtpState } from '../services/ftpSim.js';
 import { execTelnet, initTelnetState } from '../services/telnetSim.js';
-import { checkUploadName } from '../services/uploadRules.js';
+import { checkUploadName, getUploadFileSizeBytes } from '../services/uploadRules.js';
 
 const router = Router();
 router.use(requireStudent);
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: () => ({ fileSize: getUploadFileSizeBytes('terminal') })
+});
 
 function context(req) {
   const row = db
@@ -27,14 +30,31 @@ function context(req) {
   };
 }
 
-router.post('/exec', (req, res) => {
+router.post('/exec', upload.single('file'), (req, res) => {
   const ctx = context(req);
   if (!ctx) return res.status(401).json({ error: '学生不存在' });
 
-  const { mode = 'ftp', command = '', state, upload } = req.body || {};
-  if (upload && upload.name) {
-    const rule = checkUploadName(upload.name);
+  const { mode = 'ftp', command = '' } = req.body || {};
+  let state = req.body?.state;
+  if (typeof state === 'string') {
+    try {
+      state = JSON.parse(state);
+    } catch (_) {
+      return res.status(400).json({ error: '终端状态格式不正确' });
+    }
+  }
+  const uploadData = req.file
+    ? { name: req.file.originalname, content: req.file.buffer.toString('utf8') }
+    : req.body?.upload;
+  if (uploadData && uploadData.name) {
+    const rule = checkUploadName(uploadData.name);
     if (!rule.ok) return res.status(400).json({ error: rule.error });
+    if (!req.file) {
+      const size = Buffer.byteLength(String(uploadData.content || ''), 'utf8');
+      if (size > getUploadFileSizeBytes('terminal')) {
+        return res.status(413).json({ error: '文件超出大小限制' });
+      }
+    }
   }
   const deps = {
     vfs: ctx.vfs,
@@ -49,16 +69,15 @@ router.post('/exec', (req, res) => {
   let result;
   if (mode === 'telnet') {
     const s = state && typeof state === 'object' ? state : initTelnetState();
-    result = execTelnet(s, command, deps, upload);
+    result = execTelnet(s, command, deps, uploadData);
   } else {
     const s = state && typeof state === 'object' ? state : initFtpState();
-    result = execFtp(s, command, deps, upload);
+    result = execFtp(s, command, deps, uploadData);
   }
   res.json(result);
 });
 
-// 上传文件（put 命令用）：前端把本地文件读成文本后也可走 /exec 的 upload 字段；
-// 此路由用于直接接收 multipart 文件，返回内容供前端组装 put 请求。
+// 兼容接口：直接接收 multipart 文件，返回内容供旧客户端组装 put 请求。
 router.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: '未选择文件' });
   const rule = checkUploadName(req.file.originalname);
